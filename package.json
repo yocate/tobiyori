@@ -18,10 +18,20 @@
     "test:communities": "node test-community-service.cjs",
     "test:workflow": "node test-live-workflow.cjs",
     "test:discovery": "node test-discovery-offers.cjs",
-    "test:sources": "node test-official-updates.cjs"
+    "test:sources": "node test-official-updates.cjs",
+    "cf:build": "node scripts/build-assets.cjs",
+    "cf:dev": "wrangler dev --port 8877 --var APP_ORIGIN:http://localhost:8877",
+    "cf:setup:staging": "wrangler r2 bucket create tobiyori-media-staging && wrangler r2 bucket create tobiyori-backups-staging",
+    "cf:setup:production": "wrangler r2 bucket create tobiyori-media && wrangler r2 bucket create tobiyori-backups",
+    "cf:deploy:staging": "wrangler deploy --env staging",
+    "cf:deploy:production": "wrangler deploy --env production",
+    "test:cloudflare": "node test-cloudflare.cjs"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "google-auth-library": "^11.1.0",
+    "playwright": "1.64.1",
+    "wrangler": "4.151.1"
   },
   "allowScripts": {
     "@prisma/client@5.22.0": true,
@@ -30,6 +40,6 @@
     "prisma@5.22.0": true
   },
   "dependencies": {
-    "google-auth-library": "^11.1.0"
+    "jose": "5.10.0"
   }
 }

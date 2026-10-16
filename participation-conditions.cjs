@@ -49,7 +49,7 @@ function createParticipationConditions({db,notify,audit,activity,validForReview}
  CREATE INDEX IF NOT EXISTS live_condition_receipts_user ON live_condition_receipts(user_id);`);
  const one=(sql,...v)=>db.prepare(sql).get(...v),all=(sql,...v)=>db.prepare(sql).all(...v),run=(sql,...v)=>db.prepare(sql).run(...v);
  const pending=aid=>one('SELECT * FROM live_activity_change_requests WHERE activity_id=?',aid);
- function transaction(fn){db.exec('SAVEPOINT participation_change');try{const r=fn();db.exec('RELEASE participation_change');return r;}catch(e){db.exec('ROLLBACK TO participation_change; RELEASE participation_change');throw e;}}
+ const transaction=fn=>require('./tx.cjs').transaction(db,fn,'participation_change');
  function profile(uid){if(!one("SELECT name FROM sqlite_master WHERE type='table' AND name='workspaces'"))return {};try{return JSON.parse(one('SELECT content FROM workspaces WHERE user_id=?',uid)?.content||'{}').profile||{};}catch{return {};}}
  function latest(p){return one('SELECT c.*,r.ack_at FROM live_condition_changes c JOIN live_condition_receipts r ON r.change_id=c.id WHERE r.application_id=? AND c.created_at>=(SELECT created_at FROM live_applications WHERE id=r.application_id) ORDER BY c.rowid DESC LIMIT 1',p.id);}
  function required(p){const r=latest(p);return !!r&&!r.ack_at;}

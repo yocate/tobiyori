@@ -58,5 +58,13 @@ async function propose(aid,data){const a=await owned(aid);return ok('activities/
  assert.throws(()=>cleanPreferences({budget:-1}),/上限/);assert.throws(()=>cleanPreferences({from:'18:00',until:'09:00'}),/時間帯/);
  assert.equal(evaluate({startsAt:'2030-10-04T15:30:00Z',endsAt:'2030-10-04T16:00:00Z',feeAmount:0},{days:[saturday],participation:{budget:0,from:'00:00',until:'02:00'}}).find(c=>c.key==='days').status,'match');
  assert.equal(evaluate({startsAt:details.startsAt,endsAt:details.endsAt,feeAmount:2000},{}).find(c=>c.key==='budget').status,'unset');
+ // 所属メンバー限定の活動は、明示的な所属確認が必要。
+ const membersOnly=(await ok('activities',owner,{communityId:cid})).id;
+ await ok('activities/'+membersOnly,owner,{...details,participationScope:'members'});await ok('activities/'+membersOnly+'/submit',owner,{});await ok('review/'+membersOnly+'/approve',admin,{type:'activity',note:'検証'});
+ for(const confirmation of [{},{memberConfirmed:false},{memberConfirmed:'true'}]){
+  const rejected=await api('apply/'+membersOnly,other,{kind:'体験参加',...confirmation});
+  assert.equal(rejected.status,400);assert.equal(rejected.data.error,'この活動は団体の所属メンバーのみ申し込めます。所属していることを確認してください。');
+ }
+ assert.equal((await api('apply/'+membersOnly,other,{kind:'体験参加',memberConfirmed:true})).status,201);
  console.log('PASS: reviewed update → automatic personal checks → private diffs → notifications → acknowledgement; intake pause, roles, stale versions, duplicate prevention, changed preferences, unknown values, JST and rejection.');
 }finally{service.close();db.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

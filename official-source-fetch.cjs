@@ -1,5 +1,8 @@
 // Fetch public, registered sources only. Pin the validated DNS result to the socket.
-const http=require('node:http'),https=require('node:https'),dns=require('node:dns'),net=require('node:net');
+// On Cloudflare Workers, outbound fetch cannot reach private networks; fetchPublicPageWeb keeps the
+// URL, redirect, size and time checks. Node modules load lazily so the Worker bundle does not use them.
+const isIP=host=>/^\d{1,3}(\.\d{1,3}){3}$/.test(host)&&host.split('.').every(n=>Number(n)<=255)?4:host.includes(':')?6:0;
+const net={isIP};
 const sourceError=message=>Object.assign(new Error(message),{status:400});
 function isPublicIPv4(address){
  if(net.isIP(address)!==4)return false;
@@ -14,7 +17,7 @@ function publicURL(value,base){
  if(host==='instagram.com'||host.endsWith('.instagram.com'))throw sourceError('Instagramの自動取得には公式連携が必要です。Instagram欄に公式リンクを登録してください。');
  u.hash='';return u;
 }
-function safeLookup(host,options,callback){dns.lookup(host,{family:4,all:true},(error,addresses)=>{
+function safeLookup(host,options,callback){require('node:dns').lookup(host,{family:4,all:true},(error,addresses)=>{
  if(error)return callback(sourceError('情報元のサイトに接続できませんでした。'));
  if(!addresses.length||addresses.some(a=>!isPublicIPv4(a.address)))return callback(sourceError('公開されている公式サイトにのみ接続できます。'));
  const selected=addresses[0];options.all?callback(null,[selected]):callback(null,selected.address,4);
@@ -23,7 +26,7 @@ async function fetchPublicPage(value,{signal,redirects=0}={}){
  const u=publicURL(value);if(redirects>3)throw sourceError('転送先が多すぎるため取得できませんでした。');
  return new Promise((resolve,reject)=>{
   let done=false;const finish=(error,result)=>{if(done)return;done=true;clearTimeout(deadline);error?reject(error):resolve(result);};
-  const request=(u.protocol==='https:'?https:http).request(u,{method:'GET',agent:false,family:4,lookup:safeLookup,signal,headers:{'User-Agent':'Tobiyori-OfficialUpdates/1.0','Accept':'application/rss+xml, application/atom+xml, text/html, application/xml, text/xml','Accept-Encoding':'identity'}},response=>{
+  const request=require(u.protocol==='https:'?'node:https':'node:http').request(u,{method:'GET',agent:false,family:4,lookup:safeLookup,signal,headers:{'User-Agent':'Tobiyori-OfficialUpdates/1.0','Accept':'application/rss+xml, application/atom+xml, text/html, application/xml, text/xml','Accept-Encoding':'identity'}},response=>{
    if([301,302,303,307,308].includes(response.statusCode)&&response.headers.location){response.destroy();let next;try{next=publicURL(response.headers.location,u).href;}catch(e){finish(e);request.destroy();return;}finish(null,{redirect:next});return;}
    if(response.statusCode!==200){response.destroy();finish(sourceError('情報元が取得を受け付けませんでした。公式ページでご確認ください。'));return;}
    const contentType=String(response.headers['content-type']||'');
@@ -61,9 +64,28 @@ function parsePage(page){
  const title=plain(meta('og:title')||inner(body,'title'),100);if(!title)throw sourceError('読み取れるページ情報が見つかりませんでした。');
  return {mode:'page',items:[{title,text:plain(meta('og:description')||meta('description'),140),url,publishedAt:null}],feedURL:alternate?linkURL(attr(alternate,'href'),url):''};
 }
-async function readOfficialSource(source,{signal,fetcher=fetchPublicPage}={}){
+const ACCEPT='application/rss+xml, application/atom+xml, text/html, application/xml, text/xml';
+async function fetchPublicPageWeb(value,{signal,redirects=0}={}){
+ const u=publicURL(value);if(redirects>3)throw sourceError('転送先が多すぎるため取得できませんでした。');
+ const timeout=AbortSignal.timeout(10000),combined=signal?AbortSignal.any([signal,timeout]):timeout;
+ let response;
+ try{response=await fetch(u.href,{redirect:'manual',signal:combined,headers:{'User-Agent':'Tobiyori-OfficialUpdates/1.0','Accept':ACCEPT,'Accept-Encoding':'identity'}});}
+ catch{throw sourceError(timeout.aborted?'情報元への接続に時間がかかっています。あとでお試しください。':'情報元に接続できませんでした。公式ページでご確認ください。');}
+ if([301,302,303,307,308].includes(response.status)&&response.headers.get('location')){response.body?.cancel();return fetchPublicPageWeb(publicURL(response.headers.get('location'),u).href,{signal,redirects:redirects+1});}
+ if(response.status!==200){response.body?.cancel();throw sourceError('情報元が取得を受け付けませんでした。公式ページでご確認ください。');}
+ const contentType=String(response.headers.get('content-type')||'');
+ if(!/(text\/(html|xml)|application\/(rss\+xml|atom\+xml|xml|xhtml\+xml))/i.test(contentType)){response.body?.cancel();throw sourceError('この情報元の形式は自動取得に対応していません。');}
+ const reader=response.body.getReader(),chunks=[];let bytes=0;
+ try{for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.length;if(bytes>1024*1024){reader.cancel();throw sourceError('情報元のページが大きすぎるため取得できませんでした。');}chunks.push(value);}}
+ catch(e){if(e.status)throw e;throw sourceError('情報元の読み込みが中断されました。');}
+ const buffer=new Uint8Array(bytes);let offset=0;for(const c of chunks){buffer.set(c,offset);offset+=c.length;}
+ try{const head=new TextDecoder().decode(buffer.subarray(0,200)),charset=/charset=["']?([\w-]+)/i.exec(contentType)?.[1]||/encoding=["']([\w-]+)/i.exec(head)?.[1]||'utf-8';return {url:u.href,contentType,body:new TextDecoder(charset).decode(buffer)};}
+ catch{throw sourceError('情報元の文字を読み取れませんでした。');}
+}
+const defaultFetcher=globalThis.navigator?.userAgent==='Cloudflare-Workers'?fetchPublicPageWeb:fetchPublicPage;
+async function readOfficialSource(source,{signal,fetcher=defaultFetcher}={}){
  const page=await fetcher(publicURL(source).href,{signal}),parsed=parsePage(page);
  if(parsed.feedURL){try{const feed=parsePage(await fetcher(parsed.feedURL,{signal}));if(feed.mode==='feed')return {...feed,sourceURL:page.url,feedURL:parsed.feedURL};}catch{/* Keep a clearly labelled page summary if the site's feed is unavailable. */}}
  return {...parsed,sourceURL:page.url};
 }
-module.exports={isPublicIPv4,publicURL,safeLookup,fetchPublicPage,parsePage,readOfficialSource};
+module.exports={isPublicIPv4,publicURL,safeLookup,fetchPublicPage,fetchPublicPageWeb,parsePage,readOfficialSource};

@@ -28,13 +28,24 @@ npm run start:tobiyori
 新しいパソコンでは利用者データが空の状態で始まります。アプリの新規登録後、運営者にするアカウントは「運営管理者を設定.cmd」で指定します。
 Googleログインを使う場合は「Googleログインを設定.cmd」から、各パソコンで設定してください。設定用JSONをGitHubへ追加しないでください。
 
+## 本番環境（Cloudflare）
+
+商用環境は Cloudflare Workers + Durable Object（SQLite）+ R2 で動かします。構成・初回セットアップ・運用は [docs/cloudflare.md](docs/cloudflare.md) を参照してください。
+
+```sh
+npm run cf:dev             # ローカルで本番と同じ実行環境を起動（http://localhost:8877）
+npm run cf:deploy:staging  # ステージングへデプロイ
+```
+
 ## ファイルの構成
 
 | ファイル | 内容 |
 | --- | --- |
 | `成果物/gunma-community-map.html` | 現在配信している利用者画面・運営画面 |
 | `成果物/*.js`、`成果物/*.css` | 機能ごとの編集用コード。HTML内に埋め込まれた同じ箇所にも変更を反映します |
-| `tobiyori-server.cjs` | アプリ配信・アカウント・保存処理 |
+| `app.cjs` | API本体（アカウント・保存処理）。ローカルとCloudflareで共通 |
+| `tobiyori-server.cjs` | ローカル用のNodeサーバー（配信と app.cjs の起動） |
+| `cloudflare/` | Cloudflare用の入口（Worker・Durable Object・画像のR2保存） |
 | `community-service.cjs` | 団体・募集・審査・参加などの処理 |
 | `waiting-room.cjs` | よりみちラウンジの処理 |
 | `google-auth.cjs` | Googleログインの処理 |

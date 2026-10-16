@@ -18,6 +18,12 @@
 !/serendipity.cjs
 !/waiting-room.cjs
 !/manage-tobiyori.cjs
+!/app.cjs
+!/tx.cjs
+!/wrangler.jsonc
+!/cloudflare/
+!/scripts/
+!/docs/
 !/test-*.cjs
 !/start-tobiyori.ps1
 !/setup-google-login.ps1
@@ -41,6 +47,8 @@
 # Never share credentials, account databases, runtime output or build artifacts.
 **/.git/
 **/.tobiyori-data/
+**/.wrangler/
+**/.dev.vars*
 **/.auth-test-data/
 **/node_modules/
 **/.env

@@ -10,7 +10,7 @@ async function signup(name){const context=await browser.newContext({viewport:{wi
 async function api(user,route,data){const response=await user.context.request[data?'post':'get'](base+'/api/live/'+route,{headers:{Origin:base,'X-Tobiyori-Account':user.id},...(data?{data}:{})});assert(response.ok(),JSON.stringify({route,status:response.status(),body:await response.text()}));return response.json();}
 async function open(user,url){const page=await user.context.newPage();page.on('pageerror',e=>failures.push(e.message));await page.goto(base+url);return page;}
 (async()=>{try{
- await start();browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+ await start();browser=await chromium.launch({headless:true,...(process.env.TOBIYORI_BROWSER?{executablePath:process.env.TOBIYORI_BROWSER}:{channel:'chrome'})});
  const owner=await signup('owner'),one=await signup('one'),two=await signup('two'),three=await signup('three'),outsider=await signup('outsider');
  database(db=>db.prepare("INSERT INTO account_roles VALUES(?,'ADMIN')").run(owner.id));
  const c=await api(owner,'communities',{name:'検証用・まちの交流会',city:'高崎市',type:'地域団体',sector:'regional',intro:'地域の人と一緒に楽しむテスト用の団体です。',adminInfo:{consentConfirmed:true}});

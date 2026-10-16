@@ -6,7 +6,7 @@ source=source.replace(/\/\* ---------------- Boot ---------------- \*\/[\s\S]*?\
  setGoogle(v){googleEnabled=v;},setParam(v){current.param=v;},
  setUser(u){accountUser=u;accountReady=true;},setDB(d){DB=Object.assign(defaultStore(),d);},getDB(){return DB;},setView(v){current.view=v;},getError(){return accountError;}};})();`);
 const requests=[];
-const context={location:{protocol:'http:',hash:'#/home'},window:{addEventListener(){}},document:{visibilityState:"hidden",addEventListener(){},getElementById(){return null;}},console,setTimeout,clearTimeout,setInterval(){},URL,URLSearchParams,fetch:async(url,options)=>{
+const context={location:{protocol:'http:',hostname:'localhost',hash:'#/home'},window:{addEventListener(){}},document:{visibilityState:"hidden",addEventListener(){},getElementById(){return null;}},console,setTimeout,clearTimeout,setInterval(){},URL,URLSearchParams,fetch:async(url,options)=>{
  requests.push({url,...options});return {ok:true,json:async()=>({revision:requests.length})};
 }};
 vm.createContext(context);vm.runInContext(source,context);
@@ -17,6 +17,8 @@ const ui=context.testUI;
  assert(ui.viewAccount('register').includes('autocomplete="new-password"'));
  assert(ui.viewAccount('login').includes('autocomplete="current-password"'));
  assert(ui.googleLoginHTML().includes('disabled'));assert(ui.googleLoginHTML().includes('google-login-setup.html'));
+ // The setup page exists only on the PC-local server; the public site must not link to it.
+ {const pub={...context,location:{protocol:'https:',hostname:'tobiyori.hibinoba.com',hash:'#/home'}};vm.createContext(pub);vm.runInContext(source,pub);const html=pub.testUI.googleLoginHTML();assert(html.includes('disabled'));assert(!html.includes('google-login-setup.html'));assert(html.includes('メールアドレスでご利用ください'));}
  ui.setGoogle(true);assert(!ui.googleLoginHTML().includes('disabled'));assert(ui.googleLoginHTML().includes('Googleで続行'));assert(ui.googleLoginHTML().includes('googleConsent'));
  ui.setView('login');ui.setParam('google-email_exists');assert(ui.googleResultMessage().includes('パスワードでログイン'));ui.setParam(null);
  ui.setView('mypage');assert(ui.accountGate().includes('accountForm'));

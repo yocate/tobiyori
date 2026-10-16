@@ -7,7 +7,7 @@ let server,browser;const failures=[];
  server=spawn(process.execPath,['tobiyori-server.cjs'],{cwd:root,env:{...process.env,TOBIYORI_PORT:'4189',TOBIYORI_DATA_DIR:dir},stdio:'pipe',windowsHide:true});
  let output='';server.stderr.on('data',b=>output+=b);server.on('error',e=>output+=e.message);
  let ready=false;for(let i=0;i<160;i++){try{if((await fetch(base+'/api/health')).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}assert(ready,output);
- browser=await chromium.launch({headless:true,executablePath:process.env.TOBIYORI_BROWSER||'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+ browser=await chromium.launch({headless:true,...(process.env.TOBIYORI_BROWSER?{executablePath:process.env.TOBIYORI_BROWSER}:{channel:'chrome'})});
  const context=await browser.newContext({viewport:{width:1280,height:900}});
  const signup=await context.request.post(base+'/api/register',{headers:{Origin:base},data:{email:'student@example.test',password:'local-ui-test-password',nickname:'テスト参加者',consent:true}});assert.equal(signup.status(),201);
  const uid=(await signup.json()).user.id,stamp=new Date().toISOString(),db=new DatabaseSync(path.join(dir,'accounts.sqlite'));

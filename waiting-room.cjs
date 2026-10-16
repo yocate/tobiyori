@@ -1,5 +1,6 @@
 'use strict';
 const {randomUUID}=require('node:crypto');
+const {transaction}=require('./tx.cjs');
 const {isCareerListing}=require('./成果物/company-catalog.js');
 const fail=(status,message)=>Object.assign(new Error(message),{status});
 const GREETINGS=Object.freeze({hello:'はじめまして。よろしくお願いします！',first:'初めての参加で、少し緊張しています。',looking:'当日、みなさんと活動できるのが楽しみです。'});
@@ -14,9 +15,8 @@ function createWaitingRooms({db,activity,blocked,conditions,notify,isAdmin,clock
  function requirePublic(aid,user){const a=activity(aid);if(!available(a)||blocked(user,a.community_id))throw fail(404,'この活動のラウンジは現在利用できません。');return a;}
  function reconcile(aid){
   const a=activity(aid);
-  db.exec('BEGIN IMMEDIATE');
-  try{
-   if(!available(a)){run('DELETE FROM live_waiting_members WHERE activity_id=?',aid);db.exec('COMMIT');return;}
+  transaction(db,()=>{
+   if(!available(a)){run('DELETE FROM live_waiting_members WHERE activity_id=?',aid);return;}
    const rows=all('SELECT * FROM live_waiting_members WHERE activity_id=? ORDER BY joined_at,user_id',aid);
    for(const m of rows)if(blocked({id:m.user_id},a.community_id))run('DELETE FROM live_waiting_members WHERE activity_id=? AND user_id=?',aid,m.user_id);
    // Interest is independent of an application. Pending activity changes pause grouping.
@@ -34,8 +34,7 @@ function createWaitingRooms({db,activity,blocked,conditions,notify,isAdmin,clock
      while(queue.length>=3){const gid=randomUUID();run('INSERT INTO live_waiting_groups VALUES(?,?,?)',gid,aid,now());assign(gid,queue.splice(0,Math.min(4,queue.length)));}
     }
    }
-   db.exec('COMMIT');
-  }catch(e){db.exec('ROLLBACK');throw e;}
+  });
   function assign(gid,members){
    for(const m of members){run('UPDATE live_waiting_members SET group_id=? WHERE activity_id=? AND user_id=?',gid,aid,m.user_id);notify(m.user_id,'「'+a.title+'」を気にしているラウンジの仲間が見つかりました。参加するかは、これから決められます。','waiting/'+aid,'waiting-match:'+gid+':'+m.user_id);}
   }

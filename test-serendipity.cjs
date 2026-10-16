@@ -47,8 +47,8 @@ const screenshotDir=path.join(__dirname,'.audit-20260930','serendipity');fs.mkdi
   [db=>db.prepare('INSERT INTO live_applications VALUES(?,?,?,?,?,?,?,?,?)').run('done',aids[0],student.id,'体験参加','',0,0,'DONE',new Date().toISOString()),db=>db.prepare("DELETE FROM live_applications WHERE id='done'").run()]
  ];
  for(const [set,restore] of mutations){editDB(set);assert.equal(await count(),1);editDB(restore);assert.equal(await count(),2);}
- const {chromium}=require('C:/Users/natsu/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
- browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',args:['--disable-gpu']});
+ const {chromium}=require(process.env.TOBIYORI_PLAYWRIGHT||'playwright');
+ browser=await chromium.launch({headless:true,...(process.env.TOBIYORI_BROWSER?{executablePath:process.env.TOBIYORI_BROWSER}:{channel:'chrome'}),args:['--disable-gpu']});
  const context=await browser.newContext({viewport:{width:1280,height:900}});await context.addCookies([{name:'tobiyori_session',value:student.cookie.split('=')[1],url:base}]);
  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base+'/#/list');await page.getByRole('link',{name:'扉をあけてみる'}).click();
