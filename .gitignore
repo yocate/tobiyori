@@ -6,7 +6,6 @@
 !/package.json
 !/package-lock.json
 !/tobiyori-server.cjs
-!/google-auth.cjs
 !/community-service.cjs
 !/community-discovery-data.cjs
 !/community-engagement.cjs
@@ -26,10 +25,8 @@
 !/docs/
 !/test-*.cjs
 !/start-tobiyori.ps1
-!/setup-google-login.ps1
 !/setup-operator.ps1
 !/トビヨリを起動.cmd
-!/Googleログインを設定.cmd
 !/運営管理者を設定.cmd
 !/client/
 !/server/
@@ -38,7 +35,6 @@
 !/成果物/*.js
 !/成果物/*.css
 !/成果物/gunma-community-map.html
-!/成果物/google-login-setup.html
 !/成果物/tobiyori-logo-source.png
 !/成果物/tobiyori-lounge-cute-v2.png
 !/成果物/tobilabo-icon.png

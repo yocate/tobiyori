@@ -13,7 +13,6 @@
     "seed": "npm run seed --workspace=server",
     "start:tobiyori": "node tobiyori-server.cjs",
     "test:accounts": "node test-accounts.cjs",
-    "test:google": "node test-google-auth.cjs",
     "test:account-ui": "node test-account-ui.cjs",
     "test:communities": "node test-community-service.cjs",
     "test:workflow": "node test-live-workflow.cjs",
@@ -29,7 +28,6 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
-    "google-auth-library": "^11.1.0",
     "playwright": "1.64.1",
     "wrangler": "4.151.1"
   },
@@ -38,8 +36,5 @@
     "@prisma/engines@5.22.0": true,
     "esbuild@0.28.2": true,
     "prisma@5.22.0": true
-  },
-  "dependencies": {
-    "jose": "5.10.0"
   }
 }

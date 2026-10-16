@@ -2,7 +2,6 @@
 // req/res follow the small subset of node:http used here; cloudflare/http-shim.js provides them on Workers.
 const crypto = require('node:crypto');
 const { promisify } = require('node:util');
-const { createGoogleAuth } = require('./google-auth.cjs');
 const { createCommunityService } = require('./community-service.cjs');
 const { cleanPreferences } = require('./participation-conditions.cjs');
 const scrypt = promisify(crypto.scrypt);
@@ -26,14 +25,13 @@ const localHasher = {
 };
 
 // origins: allowed Origin values for writes, first one is the public origin. hosts: allowed Host headers.
-function createApp({ db, origins, hosts, secureCookies = false, hasher = localHasher, google = {}, community = {}, maxBodyBytes = 4*1024*1024 }) {
+function createApp({ db, origins, hosts, secureCookies = false, hasher = localHasher, community = {}, maxBodyBytes = 4*1024*1024 }) {
   const publicOrigin = origins[0];
   const sessionCookie = secureCookies ? '__Host-tobiyori_session' : 'tobiyori_session';
   const sessionFlags = `Path=/; HttpOnly; SameSite=Strict${secureCookies ? '; Secure' : ''}`;
   db.exec(`CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, nickname TEXT NOT NULL, password_hash TEXT NOT NULL, created_at INTEGER NOT NULL);
    CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES accounts(id), expires_at INTEGER NOT NULL);
    CREATE TABLE IF NOT EXISTS workspaces(user_id TEXT PRIMARY KEY REFERENCES accounts(id), content TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);`);
-  const googleAuth = createGoogleAuth({db,publicOrigin,secureCookies,...google});
   const communityService = createCommunityService({db,...community});
   const limits = new Map();
   function limited(key, max) {
@@ -55,7 +53,7 @@ function createApp({ db, origins, hosts, secureCookies = false, hasher = localHa
     if(!token || !/^[a-f0-9]{64}$/.test(token)) return null;
     return db.prepare('SELECT a.id,a.email,a.nickname,s.token_hash FROM accounts a JOIN sessions s ON a.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?').get(digest(token), Date.now());
   }
-  function publicUser(u) { return {id:u.id,email:u.email,nickname:u.nickname,googleLinked:!!db.prepare('SELECT 1 FROM google_identities WHERE user_id=?').get(u.id)}; }
+  function publicUser(u) { return {id:u.id,email:u.email,nickname:u.nickname}; }
   function session(res, id) {
     const token = crypto.randomBytes(32).toString('hex');
     db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(Date.now());
@@ -77,26 +75,6 @@ function createApp({ db, origins, hosts, secureCookies = false, hasher = localHa
       if(!['GET','POST','PUT'].includes(req.method)) throw failure(405,'この操作には対応していません。');
       if(req.method !== 'GET' && !origins.includes(req.headers.origin)) throw failure(403,'アプリを開き直してから操作してください。');
       if(pathname === '/api/health') return respond(res,200,{ok:true,app:'tobiyori'});
-      if(pathname === '/api/auth-options' && req.method==='GET')return respond(res,200,{googleEnabled:googleAuth.enabled()});
-      if(pathname === '/api/google/start' && req.method==='POST') {
-        if(req.headers.host!==new URL(publicOrigin).host)throw failure(400,`${publicOrigin}/ から開き直してください。`);
-        if(limited('google:'+req.socket.remoteAddress,30))throw failure(429,'試行回数が多いため、15分後にお試しください。');
-        const input=await body(req),user=userFor(req);
-        if(input.intent==='link' && (!user || req.headers['x-tobiyori-account']!==user.id))throw failure(401,'ログインしてから連携してください。');
-        try {const flow=googleAuth.start({intent:input.intent,consent:input.consent,surface:input.surface,user});res.setHeader('Set-Cookie',flow.cookie);return respond(res,200,{url:flow.url});}
-        catch(e){throw failure(400,e.googleCode==='not_configured'?'Googleログインは初期設定が必要です。':e.googleCode==='already_signed_in'?'ログアウトしてからお試しください。':'利用上の確認にチェックしてからお試しください。');}
-      }
-      if(pathname === '/api/google/callback' && req.method==='GET') {
-        const operator=googleAuth.surfaceForCallback(req,requestURL)==='operator';
-        let destination=operator?'/operator.html#/manage':'/#/mypage';
-        try {
-          const result=await googleAuth.callback(req,requestURL);
-          if(result.revokeSession)db.prepare('DELETE FROM sessions WHERE token_hash=?').run(result.revokeSession);
-          session(res,result.user.id);
-        }catch(e){const allowed=['not_configured','state','cancelled','verification','network','client_config','authorization','email_exists','email_mismatch','link_conflict','login_required'];const reason=allowed.includes(e.googleCode)?e.googleCode:'failed';console.warn(JSON.stringify({event:'google-login-failed',reason,time:new Date().toISOString()}));destination=(operator?'/operator.html':'/')+'#/login/google-'+reason;}
-        const cookies=res.getHeader('Set-Cookie');res.setHeader('Set-Cookie',[...(cookies?[cookies]:[]),googleAuth.clearCookie]);
-        res.writeHead(303,{'Location':destination});return res.end();
-      }
       if(req.method === 'POST' && ['/api/register','/api/login'].includes(pathname)) {
         if(limited('ip:'+req.socket.remoteAddress,60)) throw failure(429,'試行回数が多いため、15分後にお試しください。');
         const input = await body(req);

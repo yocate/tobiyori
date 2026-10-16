@@ -1,9 +1,9 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 let source=[...fs.readFileSync('成果物/gunma-community-map.html','utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1];
-source=source.replace(/\/\* ---------------- Boot ---------------- \*\/[\s\S]*?\}\)\(\);/,`globalThis.testUI={viewAccount,viewMypage,queueAccountSave,flushAccount,accountGate,loadAccountState,googleLoginHTML,googleResultMessage,viewLivePage,liveApplicationCard,
+source=source.replace(/\/\* ---------------- Boot ---------------- \*\/[\s\S]*?\}\)\(\);/,`globalThis.testUI={viewAccount,viewMypage,queueAccountSave,flushAccount,accountGate,loadAccountState,viewLivePage,liveApplicationCard,
  refreshLive,clearLivePrivate,liveApplyControls,liveHomeActivitiesHTML,liveVerificationHTML,liveFollowsHTML,liveBuzzHTML,liveReviewCard,liveReviewControls,
  setMypageTab(v){mypageTab=v;},getLive(){return LIVE;},setLive(v){LIVE=v;},
- setGoogle(v){googleEnabled=v;},setParam(v){current.param=v;},
+ setParam(v){current.param=v;},
  setUser(u){accountUser=u;accountReady=true;},setDB(d){DB=Object.assign(defaultStore(),d);},getDB(){return DB;},setView(v){current.view=v;},getError(){return accountError;}};})();`);
 const requests=[];
 const context={location:{protocol:'http:',hostname:'localhost',hash:'#/home'},window:{addEventListener(){}},document:{visibilityState:"hidden",addEventListener(){},getElementById(){return null;}},console,setTimeout,clearTimeout,setInterval(){},URL,URLSearchParams,fetch:async(url,options)=>{
@@ -16,11 +16,9 @@ const ui=context.testUI;
  assert(ui.viewAccount('register').includes('accountConfirm'));
  assert(ui.viewAccount('register').includes('autocomplete="new-password"'));
  assert(ui.viewAccount('login').includes('autocomplete="current-password"'));
- assert(ui.googleLoginHTML().includes('disabled'));assert(ui.googleLoginHTML().includes('google-login-setup.html'));
+ // Google login was removed: the sign-in screen must not offer it.
+ assert(!ui.viewAccount('login').includes('Google'));assert(!ui.viewAccount('register').includes('Google'));
  // The setup page exists only on the PC-local server; the public site must not link to it.
- {const pub={...context,location:{protocol:'https:',hostname:'tobiyori.hibinoba.com',hash:'#/home'}};vm.createContext(pub);vm.runInContext(source,pub);const html=pub.testUI.googleLoginHTML();assert(html.includes('disabled'));assert(!html.includes('google-login-setup.html'));assert(html.includes('メールアドレスでご利用ください'));}
- ui.setGoogle(true);assert(!ui.googleLoginHTML().includes('disabled'));assert(ui.googleLoginHTML().includes('Googleで続行'));assert(ui.googleLoginHTML().includes('googleConsent'));
- ui.setView('login');ui.setParam('google-email_exists');assert(ui.googleResultMessage().includes('パスワードでログイン'));ui.setParam(null);
  ui.setView('mypage');assert(ui.accountGate().includes('accountForm'));
  ui.setUser({id:'one',nickname:'<script>alert(1)</script>',email:'test@example.com'});
  assert(ui.viewAccount().includes('&lt;script&gt;'));assert(!ui.viewAccount().includes('<script>'));

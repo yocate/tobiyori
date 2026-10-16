@@ -1,5 +1,5 @@
 // Cloudflare configuration. Top level = local `wrangler dev`; deploy with --env staging / --env production.
-// Secrets (per environment): wrangler secret put GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET --env <env>
+// Secrets (per environment): wrangler secret put ADMIN_ACCOUNT_IDS --env <env>
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tobiyori-dev",
@@ -19,6 +19,7 @@
 
   "vars": { "APP_ORIGIN": "http://localhost:8787" },
   "durable_objects": { "bindings": [{ "name": "DB", "class_name": "TobiyoriDatabase" }] },
+  "version_metadata": { "binding": "CF_VERSION" },
   "r2_buckets": [
     { "binding": "MEDIA", "bucket_name": "tobiyori-media-dev" },
     { "binding": "BACKUPS", "bucket_name": "tobiyori-backups-dev" }
@@ -36,6 +37,7 @@
       "routes": [{ "pattern": "tobiyori-staging.hibinoba.com", "custom_domain": true }],
       "vars": { "APP_ORIGIN": "https://tobiyori-staging.hibinoba.com" },
       "durable_objects": { "bindings": [{ "name": "DB", "class_name": "TobiyoriDatabase" }] },
+      "version_metadata": { "binding": "CF_VERSION" },
       "r2_buckets": [
         { "binding": "MEDIA", "bucket_name": "tobiyori-media-staging" },
         { "binding": "BACKUPS", "bucket_name": "tobiyori-backups-staging" }
@@ -52,6 +54,7 @@
       "routes": [{ "pattern": "tobiyori.hibinoba.com", "custom_domain": true }],
       "vars": { "APP_ORIGIN": "https://tobiyori.hibinoba.com" },
       "durable_objects": { "bindings": [{ "name": "DB", "class_name": "TobiyoriDatabase" }] },
+      "version_metadata": { "binding": "CF_VERSION" },
       "r2_buckets": [
         { "binding": "MEDIA", "bucket_name": "tobiyori-media" },
         { "binding": "BACKUPS", "bucket_name": "tobiyori-backups" }

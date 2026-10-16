@@ -9,7 +9,6 @@
 
 - 画面：HTML / CSS / JavaScript
 - サーバー：Node.js 24以上（組み込みのSQLiteを使用）
-- Googleログイン：Google OAuthの設定が必要
 - データ保存先：`.tobiyori-data/`（Git管理対象外）
 
 `client/` と `server/` には別構成のReact / TypeScript / Prisma版のコードもあります。現在の4177番ポートのアプリを修正するときは、ルートのサーバーと `成果物/` 内のコードを使用してください。
@@ -26,7 +25,6 @@ npm run start:tobiyori
 起動後に `http://localhost:4177/` を開きます。Windowsでは依存関係の準備後に「トビヨリを起動.cmd」も使用できます。
 
 新しいパソコンでは利用者データが空の状態で始まります。アプリの新規登録後、運営者にするアカウントは「運営管理者を設定.cmd」で指定します。
-Googleログインを使う場合は「Googleログインを設定.cmd」から、各パソコンで設定してください。設定用JSONをGitHubへ追加しないでください。
 
 ## 本番環境（Cloudflare）
 
@@ -48,7 +46,6 @@ npm run cf:deploy:staging  # ステージングへデプロイ
 | `cloudflare/` | Cloudflare用の入口（Worker・Durable Object・画像のR2保存） |
 | `community-service.cjs` | 団体・募集・審査・参加などの処理 |
 | `waiting-room.cjs` | よりみちラウンジの処理 |
-| `google-auth.cjs` | Googleログインの処理 |
 | `test-*.cjs` | 機能の確認用テスト |
 
 ## 2台のパソコンで開発する流れ
@@ -71,7 +68,6 @@ GitHubで共有するのはソースコードです。アプリの利用者情�
 ```sh
 npm run test:account-ui
 npm run test:communities
-npm run test:google
 ```
 
 ブラウザーを使う一部のテストにはPlaywrightとブラウザーの用意が別途必要です。
@@ -81,7 +77,7 @@ npm run test:google
 `.gitignore` でアプリのコード・必要な画像・テストを共有対象とし、次のものを除外しています。
 
 - 利用者のデータベース、セッション、ログ
-- Googleの秘密キーや環境設定ファイル
+- 秘密キーや環境設定ファイル
 - インストール済みライブラリー、生成済みファイル、バックアップ
 - この作業フォルダーにある企画書、発表資料、卒論などの個人ファイル
 

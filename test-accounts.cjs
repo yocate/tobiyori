@@ -19,9 +19,9 @@ async function request(route,{method='GET',data,cookie,id,origin=base}={}){
 (async()=>{try{
  await start();
  assert.equal((await request('me')).status,401);
- assert.equal((await request('auth-options')).data.googleEnabled,false);
- assert.equal((await request('google/start',{method:'POST',data:{intent:'login',consent:true}})).status,400);
- const badCallback=await fetch(base+'/api/google/callback?code=invalid&state=invalid',{redirect:'manual'});assert.equal(badCallback.status,303);assert.equal(badCallback.headers.get('location'),'/#/login/google-state');
+ // Google login was removed: its endpoints no longer exist.
+ assert.notEqual((await request('google/start',{method:'POST',data:{intent:'login',consent:true}})).status,200);
+ assert.notEqual((await fetch(base+'/api/google/callback?code=x&state=y',{redirect:'manual'})).status,303);
  assert.equal((await request('register',{method:'POST',data:{email:'no',password:'short'}})).status,400);
  const details={email:'Test@example.com',password:'test-password-123',nickname:'テスト参加者',consent:true};
  const a=await request('register',{method:'POST',data:details});assert.equal(a.status,201);assert.equal(a.data.user.email,'test@example.com');assert(!('password_hash' in a.data.user));

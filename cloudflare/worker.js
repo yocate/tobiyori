@@ -82,7 +82,7 @@ async function api(request, env, ctx) {
   const ip = request.headers.get('cf-connecting-ip') || 'unknown';
   const headers = new Headers();
   for (const [k, v] of request.headers) if (!k.startsWith(INTERNAL)) headers.set(k, v);
-  const auth = request.method === 'POST' && ['/api/register', '/api/login', '/api/google/start'].includes(url.pathname);
+  const auth = request.method === 'POST' && ['/api/register', '/api/login'].includes(url.pathname);
   if (await limited(auth ? env.AUTH_LIMITER : env.API_LIMITER, (auth ? 'auth:' : 'api:') + ip))
     return json(429, { error: '試行回数が多いため、時間をおいてお試しください。' });
 
@@ -109,7 +109,11 @@ async function api(request, env, ctx) {
       catch (e) { if (e.status) return json(e.status, { error: e.message }); throw e; }
     }
   }
-  const response = await database(env).fetch(new Request(request.url, { method: request.method, headers, body, redirect: 'manual' }));
+  // The database object may still run the previous deployment; it restarts itself when versions differ.
+  if (env.CF_VERSION?.id) headers.set(INTERNAL + 'version', env.CF_VERSION.id);
+  const forward = () => database(env).fetch(new Request(request.url, { method: request.method, headers, body, redirect: 'manual' }));
+  let response;
+  try { response = await forward(); } catch (e) { if (!e?.message?.includes('code updated')) throw e; response = await forward(); }
   // Do not keep images uploaded for a write the database rejected.
   if (created.length && response.status >= 400) ctx.waitUntil(deleteMedia(env.MEDIA, created));
   return response;
@@ -148,7 +152,6 @@ export class TobiyoriDatabase extends DurableObject {
           async hash(_password, req) { const h = req.headers[INTERNAL + 'password-hash']; if (!h) throw new Error('missing password hash'); return h; },
           async verify(_password, _stored, req) { return req.headers[INTERNAL + 'password-ok'] === '1'; },
         },
-        google: { env: { TOBIYORI_GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID, TOBIYORI_GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET } },
         community: { schedule: false, tidyEveryMs: 15_000 },
       });
       this.syncAdmins();
@@ -174,6 +177,8 @@ export class TobiyoriDatabase extends DurableObject {
   }
 
   async fetch(request) {
+    const wanted = request.headers.get(INTERNAL + 'version');
+    if (wanted && this.env.CF_VERSION?.id && wanted !== this.env.CF_VERSION.id) this.ctx.abort('code updated');
     const req = await nodeRequest(request);
     const { res, toResponse } = nodeResponse();
     if ((await this.app.handle(req, res)) === false) return json(404, { error: 'ページが見つかりません。' });
