@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const {COMMUNITY_GENRES,communityGenreKey,communityGenreMatches,preserveCommunityGenres,matchesCommunityOffer,matchingCommunityInterests}=require('./成果物/community-genres.js');
+const {assess}=require('./serendipity.cjs');
+assert.equal(COMMUNITY_GENRES.length,8);
+assert.equal(new Set(COMMUNITY_GENRES.flatMap(g=>g.interests)).size,26);
+assert.equal(communityGenreKey('音楽・軽音・バンド'),'local_culture');
+assert(communityGenreMatches('文化・スポーツ',['バドミントン']));
+assert(!communityGenreMatches('自然・農業・環境',['バドミントン']));
+assert.equal(communityGenreKey('まだ分類していないもの'),null);
+assert.deepEqual(preserveCommunityGenres(['音楽・軽音・バンド','写真・カメラ'],['文化・スポーツ','発信・デジタル']),['音楽・軽音・バンド','写真・カメラ']);
+assert.deepEqual(preserveCommunityGenres(['音楽・軽音・バンド'],['自然・農業・環境']),['自然・農業・環境']);
+assert(matchesCommunityOffer(['interest_photo'],'local_digital'));assert(matchesCommunityOffer(['local_learning'],'study'));assert(!matchesCommunityOffer(['study'],'interest_books'));assert(!matchesCommunityOffer([null],'not-an-interest'));
+assert(matchingCommunityInterests(['interest_music'],['文化・スポーツ']));assert(matchingCommunityInterests(['local_industry'],['観光・まち歩き']));
+const p={interests:['local_culture'],days:['土'],areas:['高崎市']},a={genre:'音楽・軽音・バンド',beginner:true,startsAt:'2030-10-05T01:00:00Z',endsAt:'2030-10-05T03:00:00Z',activityCity:'高崎市',feeAmount:0};
+assert(!assess(a,p).eligible);assert(assess({...a,genre:'子ども・学び'},p).eligible);assert(!assess({...a,genre:'子ども・学び'},p,['study']).eligible);
+console.log('PASS: 8 themes cover 26 previous interests; legacy detail preservation; grouped search, consented offers, recommendations and familiar-theme exclusions.');

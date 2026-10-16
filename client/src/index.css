@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  /* 群馬の自然を感じる緑・青・白+アンバー(達成の色) */
+  --brand: #2f9e6e;
+  --brand-dark: #1f7a53;
+  --brand-soft: #e6f5ee;
+  --accent-blue: #3b6fd9;
+  --accent-blue-soft: #eaf1fd;
+  --amber: #f59e0b;
+  --amber-soft: #fffbeb;
+  --ink: #1f2933;
+  --muted: #6b7280;
+  --danger: #d64545;
+  --warn: #c88a1a;
+  --font-heading: "Zen Maru Gothic", "Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
+  --font-body: "Zen Kaku Gothic New", "Zen Maru Gothic", "Hiragino Sans", sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #eef1f4;
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .font-heading {
+  font-family: var(--font-heading);
+}
+
+/* Normal browser page: content sits in a readable centered column,
+   the page scrolls natively, and the header/bottom nav stay put. */
+.app-shell {
+  max-width: 720px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+@media (min-width: 721px) {
+  .app-shell {
+    border-left: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.04);
+  }
+}
+
+.app-shell > header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.app-main {
+  flex: 1;
+  padding-bottom: 84px;
+}
+
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 100%;
+  max-width: 720px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+}
+
+.bottom-nav a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  font-size: 11px;
+  color: var(--muted);
+  text-decoration: none;
+  border-radius: 10px;
+}
+
+.bottom-nav a.active {
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 220px;
+  border-radius: 14px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}

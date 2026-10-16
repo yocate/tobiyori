@@ -1,0 +1,35 @@
+{
+  "name": "d-cross",
+  "private": true,
+  "version": "0.0.1",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev --workspace=server\" \"npm run dev --workspace=client\"",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "seed": "npm run seed --workspace=server",
+    "start:tobiyori": "node tobiyori-server.cjs",
+    "test:accounts": "node test-accounts.cjs",
+    "test:google": "node test-google-auth.cjs",
+    "test:account-ui": "node test-account-ui.cjs",
+    "test:communities": "node test-community-service.cjs",
+    "test:workflow": "node test-live-workflow.cjs",
+    "test:discovery": "node test-discovery-offers.cjs",
+    "test:sources": "node test-official-updates.cjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "esbuild@0.28.2": true,
+    "prisma@5.22.0": true
+  },
+  "dependencies": {
+    "google-auth-library": "^11.1.0"
+  }
+}
