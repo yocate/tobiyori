@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const { promisify } = require('node:util');
 const { createCommunityService } = require('./community-service.cjs');
 const { cleanPreferences } = require('./participation-conditions.cjs');
+const { createFeedback } = require('./feedback.cjs');
 const scrypt = promisify(crypto.scrypt);
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 const failure = (status, message) => Object.assign(new Error(message), {status});
@@ -25,7 +26,8 @@ const localHasher = {
 };
 
 // origins: allowed Origin values for writes, first one is the public origin. hosts: allowed Host headers.
-function createApp({ db, origins, hosts, secureCookies = false, hasher = localHasher, community = {}, maxBodyBytes = 4*1024*1024 }) {
+// release: the deployed version, stored with feedback so changes can be compared before and after.
+function createApp({ db, origins, hosts, secureCookies = false, hasher = localHasher, community = {}, release = 'local', maxBodyBytes = 4*1024*1024 }) {
   const publicOrigin = origins[0];
   const sessionCookie = secureCookies ? '__Host-tobiyori_session' : 'tobiyori_session';
   const sessionFlags = `Path=/; HttpOnly; SameSite=Strict${secureCookies ? '; Secure' : ''}`;
@@ -33,6 +35,7 @@ function createApp({ db, origins, hosts, secureCookies = false, hasher = localHa
    CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES accounts(id), expires_at INTEGER NOT NULL);
    CREATE TABLE IF NOT EXISTS workspaces(user_id TEXT PRIMARY KEY REFERENCES accounts(id), content TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0);`);
   const communityService = createCommunityService({db,...community});
+  const feedback = createFeedback({db,release});
   const limits = new Map();
   function limited(key, max) {
     const now = Date.now();
@@ -100,6 +103,7 @@ function createApp({ db, origins, hosts, secureCookies = false, hasher = localHa
         session(res,user.id);
         return respond(res,pathname==='/api/register'?201:200,{user:publicUser(user)});
       }
+      if(await feedback.handle({req,res,url:requestURL,user:userFor(req),readBody:body,respond,limited}))return;
       if(await communityService.handle({req,res,url:requestURL,user:userFor(req),readBody:body,respond}))return;
       const user = userFor(req);
       if(!user) throw failure(401,'ログインしてください。');

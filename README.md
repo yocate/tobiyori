@@ -46,6 +46,7 @@ npm run cf:deploy:staging  # ステージングへデプロイ
 | `cloudflare/` | Cloudflare用の入口（Worker・Durable Object・画像のR2保存） |
 | `community-service.cjs` | 団体・募集・審査・参加などの処理 |
 | `waiting-room.cjs` | よりみちラウンジの処理 |
+| `feedback.cjs` | ご意見（匿名の送信、運営画面での集計・対応状況・CSV出力） |
 | `test-*.cjs` | 機能の確認用テスト |
 
 ## 2台のパソコンで開発する流れ

@@ -24,7 +24,8 @@
     "cf:setup:production": "wrangler r2 bucket create tobiyori-media && wrangler r2 bucket create tobiyori-backups",
     "cf:deploy:staging": "wrangler deploy --env staging",
     "cf:deploy:production": "wrangler deploy --env production",
-    "test:cloudflare": "node test-cloudflare.cjs"
+    "test:cloudflare": "node test-cloudflare.cjs",
+    "test:feedback": "node test-feedback.cjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

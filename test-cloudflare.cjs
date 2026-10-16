@@ -32,12 +32,17 @@ async function api(route,{method,data,user,origin=base}={}){
  const media=await fetch(base+src);assert.equal(media.status,200);assert.equal(media.headers.get('content-type'),'image/jpeg');assert.match(media.headers.get('cache-control'),/immutable/);
  assert.equal(Buffer.from(await media.arrayBuffer()).toString('base64'),jpeg.split(',')[1]);
  const fake=await api('state',{method:'PUT',user,data:{revision:2,state:{x:'data:image/png;base64,'+Buffer.from('not an image').toString('base64')}}});assert.equal(fake.status,400,'mislabelled image must be rejected');
+ // Anyone can send feedback; reading it needs an operator. Not sent to production, where it would skew the analysis.
+ const local=/^http:\/\/(localhost|127\.0\.0\.1)/.test(base);
+ if(local)assert.equal((await api('feedback',{data:{category:'idea',body:'Cloudflare確認用のご意見',page:'#/home',device:'desktop',context:{viewport:'1280x900'}}})).status,201);
+ assert.equal((await api('feedback/summary')).status,401);
  // Operator flow needs an account listed in ADMIN_ACCOUNT_IDS (TOBIYORI_ADMIN_EMAIL / TOBIYORI_ADMIN_PASSWORD).
  if(process.env.TOBIYORI_ADMIN_EMAIL){
   const a=await api('login',{data:{email:process.env.TOBIYORI_ADMIN_EMAIL,password:process.env.TOBIYORI_ADMIN_PASSWORD}});assert.equal(a.status,200);
   const admin={id:a.data.user.id,cookie:a.headers.get('set-cookie').split(';')[0]};
   const community=await api('live/communities',{user:admin,data:{name:'CF検証団体'+stamp,city:'前橋市',type:'学生団体',intro:'検証用',photos:[{src:jpeg,caption:'検証'}]}});assert(community.status<300,JSON.stringify(community.data));
   const dash=await api('live/dashboard',{user:admin});assert.equal(dash.status,200);assert(JSON.stringify(dash.data).includes('/media/'),'community photo stored as media URL');
+  if(local){const fb=await api('feedback?q='+encodeURIComponent('Cloudflare確認用'),{user:admin});assert.equal(fb.status,200);assert(fb.data.total>=1);assert(fb.data.items[0].release&&fb.data.items[0].release!=='local','release recorded');}
   await api('logout',{user:admin,data:{}});
  }
  assert.equal((await api('live/catalog')).status,200);

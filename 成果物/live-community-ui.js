@@ -11,8 +11,9 @@ async function refreshLive(redraw=true){
    const catalog=await accountAPI('live/catalog');
    const dashboard=uid?await accountAPI('live/dashboard'):null;
    const review=OPERATOR_APP&&dashboard?.role==='ADMIN'?await accountAPI('live/review'):null;
+   const feedbackNew=OPERATOR_APP&&dashboard?.role==='ADMIN'?(await accountAPI('feedback/summary').catch(()=>null))?.newCount||0:0;
    if(request!==liveRequest||epoch!==accountEpoch||uid!==accountUser?.id)return;
-   LIVE={catalog,dashboard,review,loaded:true,error:'',fetchedAt:Date.now()};
+   LIVE={catalog,dashboard,review,feedbackNew,loaded:true,error:'',fetchedAt:Date.now()};
    showDailyVisitNotice(visit);
  }catch(e){if(request!==liveRequest||epoch!==accountEpoch||uid!==accountUser?.id)return;LIVE.loaded=true;LIVE.error=e.message||'募集を読み込めませんでした。';if([401,403,409].includes(e.status)){clearLivePrivate();}}
  accountNotice();
@@ -72,6 +73,7 @@ function liveShell(title,body){return `<div class="container section live-page">
 function viewLivePage(){
  const serendipityPage=viewSerendipity();if(serendipityPage!==null)return serendipityPage;
  const supportPage=viewSupportPage();if(supportPage!==null)return supportPage;
+ const feedbackPage=viewFeedbackPage();if(feedbackPage!==null)return feedbackPage;
  const discoveryPage=viewDiscoveryPage();if(discoveryPage!==null)return discoveryPage;
  if(!['live','liveactivity','livecommunity','myactivity','notifications','following','org','orgSignup','admin','manage','participants'].includes(current.view))return null;
  if(!ACCOUNT_SERVER)return liveShell('アプリを起動してください','<p>登録された募集を見るには、トビヨリを起動してアクセスしてください。</p><a class="btn btn-primary" href="http://localhost:4177/">アプリを開く</a>');

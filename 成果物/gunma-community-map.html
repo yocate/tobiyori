@@ -539,6 +539,10 @@ body:not(.operator-app) .topbar-cta{display:flex}body:not(.operator-app) .topbar
 .live-register-form .registration-tag{display:inline-flex;align-items:center;flex:none;font-size:13px;font-weight:800;line-height:1.5;padding:5px 11px;border-radius:8px;letter-spacing:.03em}.registration-tag-required{background:#17513b;color:#fff}.registration-tag-optional{background:#e8eeeb;color:#354f43}.registration-tag-review{background:#fff0c7;color:#684814}.live-registration-required{border:2px solid #508665;border-top:5px solid #236143}.registration-description{color:#315943;line-height:1.7}.live-registration-options{border:1px solid #a5b9ac;border-radius:18px;margin:24px 0;overflow:hidden;background:#f6f9f5}.live-registration-options>summary{padding:22px;display:flex;align-items:center;gap:13px;cursor:pointer;list-style:none;min-height:64px;color:#234c35}.live-registration-options>summary::-webkit-details-marker{display:none}.live-registration-options>summary:after{content:'＋';font-size:25px;font-weight:600;margin-left:auto;flex:none}.live-registration-options[open]>summary:after{content:'−'}.live-registration-options>summary:hover{background:#eaf2e6}.live-registration-options>summary:focus-visible{outline:3px solid #39734e;outline-offset:-5px;border-radius:18px}.registration-option-title{font-weight:800;font-size:20px;line-height:1.5;min-width:0}.registration-option-title small{display:block;font-size:14px;font-weight:400;color:#4f6558;line-height:1.7;margin-top:5px}.live-registration-option-body{padding:0 20px 20px;border-top:1px solid #d3ded4}.registration-option-hint{font-size:14px;color:#3d5948;line-height:1.8;margin:20px 3px}.live-registration-option-body>.live-card{margin:16px 0}.live-registration-option-body>.live-card:last-child{margin-bottom:0}.live-register-form .live-registration-consent{background:#fffcf0;border-color:#dcca99}.live-registration-required input,.live-registration-required textarea,.live-registration-required select{scroll-margin-top:100px}
 @media(max-width:640px){.live-registration-options>summary{padding:18px 14px;gap:9px;align-items:flex-start}.registration-option-title{font-size:18px}.registration-option-title small{font-size:13px}.live-registration-option-body{padding:0 12px 12px}.live-register-form h2 small{width:auto;padding-left:0}.live-registration-options .live-card{padding:18px}.live-registration-options input,.live-registration-options select,.live-registration-options textarea{max-width:100%;box-sizing:border-box}}
 .live-register-form .live-registration-options{padding:0;border:1px solid #a5b9ac;border-radius:18px}
+/* Feedback (ご意見) */
+.feedback-table-wrap{overflow-x:auto}.feedback-table{width:100%;border-collapse:collapse;font-size:14px}.feedback-table th,.feedback-table td{text-align:left;padding:8px 10px;border-bottom:1px solid #E2E8DC;vertical-align:top}.feedback-table th{font-weight:700;color:#315D42;white-space:nowrap}
+.feedback-weeks{display:flex;gap:10px;align-items:flex-end;min-height:110px;overflow-x:auto}.feedback-weeks>div{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:44px}.feedback-weeks span{display:block;width:28px;background:#729372;border-radius:6px 6px 0 0}.feedback-weeks small{font-size:12px;color:#46614D;white-space:nowrap}
+.feedback-triage{margin-top:12px;border-top:1px solid #E2E8DC;padding-top:8px}.feedback-triage summary{cursor:pointer;padding:8px 0;font-weight:700;color:#315D42}.feedback-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 16px}
 </style>
 
 <div class="topbar">
@@ -947,7 +951,7 @@ let accountUser = null, accountReady = false, accountRevision = 0;
 let pendingAccountState = null, accountSaving = null, accountError = '', accountEpoch = 0, accountConflict = false;
 async function accountAPI(url, method='GET', data) {
   const headers=data?{'Content-Type':'application/json'}:{};
-  if(accountUser && (['state','logout'].includes(url)||url.startsWith('live/')))headers['X-Tobiyori-Account']=accountUser.id;
+  if(accountUser && (['state','logout'].includes(url)||url.startsWith('live/')||url.startsWith('feedback/')))headers['X-Tobiyori-Account']=accountUser.id;
   const response = await fetch('/api/'+url, {method, credentials:'same-origin',cache:'no-store',headers,body:data?JSON.stringify(data):undefined});
   const result = await response.json();
   if(!response.ok) throw Object.assign(new Error(result.error || '接続できませんでした。'),{status:response.status});
@@ -1076,8 +1080,9 @@ async function refreshLive(redraw=true){
    const catalog=await accountAPI('live/catalog');
    const dashboard=uid?await accountAPI('live/dashboard'):null;
    const review=OPERATOR_APP&&dashboard?.role==='ADMIN'?await accountAPI('live/review'):null;
+   const feedbackNew=OPERATOR_APP&&dashboard?.role==='ADMIN'?(await accountAPI('feedback/summary').catch(()=>null))?.newCount||0:0;
    if(request!==liveRequest||epoch!==accountEpoch||uid!==accountUser?.id)return;
-   LIVE={catalog,dashboard,review,loaded:true,error:'',fetchedAt:Date.now()};
+   LIVE={catalog,dashboard,review,feedbackNew,loaded:true,error:'',fetchedAt:Date.now()};
    showDailyVisitNotice(visit);
  }catch(e){if(request!==liveRequest||epoch!==accountEpoch||uid!==accountUser?.id)return;LIVE.loaded=true;LIVE.error=e.message||'募集を読み込めませんでした。';if([401,403,409].includes(e.status)){clearLivePrivate();}}
  accountNotice();
@@ -1215,6 +1220,7 @@ function viewLivePage(){
  const waitingPage=viewWaitingPage();if(waitingPage!==null)return waitingPage;
  const serendipityPage=viewSerendipity();if(serendipityPage!==null)return serendipityPage;
  const supportPage=viewSupportPage();if(supportPage!==null)return supportPage;
+ const feedbackPage=viewFeedbackPage();if(feedbackPage!==null)return feedbackPage;
  const discoveryPage=viewDiscoveryPage();if(discoveryPage!==null)return discoveryPage;
  if(!['live','liveactivity','livecommunity','myactivity','notifications','following','saved','org','orgSignup','admin','manage','participants'].includes(current.view))return null;
  if(!ACCOUNT_SERVER)return liveShell('アプリを起動してください','<p>登録された募集を見るには、トビヨリを起動してアクセスしてください。</p><a class="btn btn-primary" href="http://localhost:4177/">アプリを開く</a>');
@@ -1307,6 +1313,7 @@ async function liveAction(route,data={},button){
 }
 function bindLiveUI(scope){
  bindWaitingUI(scope);
+ bindFeedbackAdmin(scope);
  void recordVisibleCommunityView();
  scope.querySelectorAll('[data-community-save]').forEach(b=>b.onclick=async()=>{const uid=accountUser?.id,epoch=accountEpoch,saved=b.dataset.saved!=='true';if(await liveAction('saved-communities/'+encodeURIComponent(b.dataset.communitySave),{saved},b)){if(uid!==accountUser?.id||epoch!==accountEpoch)return;render();toast(saved?'コミュニティを保存しました':'保存を解除しました');}});
  bindSerendipityUI(scope);
@@ -1354,7 +1361,7 @@ setInterval(()=>{if(ACCOUNT_SERVER&&accountReady&&document.visibilityState==='vi
 
 
 /* Separate participant and operator surfaces; server permissions remain authoritative. */
-const OPERATOR_VIEWS=['manage','admin','org','orgSignup','participants','reports','waitingManage'];
+const OPERATOR_VIEWS=['manage','admin','org','orgSignup','participants','reports','waitingManage','feedback'];
 function canOperate(){return LIVE.dashboard?.role==='ADMIN'||!!LIVE.dashboard?.communities?.length;}
 function surfaceTarget(view,param){
   if(OPERATOR_APP&&view==='home')view='manage';
@@ -1373,7 +1380,7 @@ function surfaceRoutes(){
   if(!OPERATOR_APP)return ROUTES;
   if(!canOperate())return [];
   return [{id:'manage',label:'運営ホーム',icon:'home'},
-    ...(LIVE.dashboard?.role==='ADMIN'?[{id:'admin',label:'団体・審査',icon:'shield'},{id:'reports',label:'相談対応',icon:'info'}]:[]),
+    ...(LIVE.dashboard?.role==='ADMIN'?[{id:'admin',label:'団体・審査',icon:'shield'},{id:'reports',label:'相談対応',icon:'info'},{id:'feedback',label:'ご意見',icon:'megaphone'}]:[]),
     {id:'org',label:'募集管理',icon:'list'},
     {id:'participants',label:'参加者対応',icon:'user'},
     {id:'notifications',label:'お知らせ',icon:'bell'}];
@@ -1391,8 +1398,8 @@ function operatorHome(){
   const d=LIVE.dashboard,review=LIVE.review||{communities:[],activities:[]};
   const waiting=d.applications.filter(p=>p.owned&&p.status==='APPLIED').length;
   const completion=d.applications.filter(p=>p.owned&&p.status==='APPROVED'&&p.activity.endsAt<=new Date().toISOString()).length;
-  const stats=[['団体の確認待ち',review.communities.filter(c=>c.status==='PENDING').length,'admin'],['募集の審査待ち',review.activities.length,'admin'],['申込みの承認待ち',waiting,'participants'],['活動完了の確認',completion,'participants']].filter(x=>d.role==='ADMIN'||x[2]!=='admin');
-  return liveShell('運営ホーム',`<div class="operator-intro"><span class="operator-label">TOBIYORI MANAGEMENT</span><p>団体の情報を整えて、次の参加につなげましょう。</p></div><div class="operator-stats">${stats.map(([label,count,view])=>`<button class="card operator-stat" data-nav="${view}"><span>${label}</span><strong>${count}<small>件</small></strong><span class="hint">確認する →</span></button>`).join('')}</div><a class="btn btn-secondary" href="/operator.html#/waitingManage">ラウンジの様子を確認</a><h2>今日の運営メニュー</h2><div class="operator-actions">${d.role==='ADMIN'?'<section class="card live-card"><h3>団体を登録・確認する</h3><p>活動紹介、写真、連絡先を登録し、確認後に公開します。</p><button class="btn btn-primary" data-nav="admin" data-param="new">＋ 団体を登録</button><button class="btn btn-ghost" data-nav="admin">団体・審査を見る</button></section>':''}<section class="card live-card"><h3>募集をつくる・更新する</h3><p>前回の募集を複製して、次の活動を準備できます。</p><button class="btn btn-secondary" data-nav="org">募集管理へ</button></section><section class="card live-card"><h3>参加者に対応する</h3><p>申込みの承認、活動の連絡板、参加完了の記録をまとめて確認。</p><button class="btn btn-secondary" data-nav="participants">参加者対応へ</button></section></div><p class="hint">申込みの承認・連絡は、自分が担当する団体の活動を表示します。</p>`);
+  const stats=[['団体の確認待ち',review.communities.filter(c=>c.status==='PENDING').length,'admin'],['募集の審査待ち',review.activities.length,'admin'],['申込みの承認待ち',waiting,'participants'],['活動完了の確認',completion,'participants'],['未確認のご意見',LIVE.feedbackNew||0,'feedback']].filter(x=>d.role==='ADMIN'||!['admin','feedback'].includes(x[2]));
+  return liveShell('運営ホーム',`<div class="operator-intro"><span class="operator-label">TOBIYORI MANAGEMENT</span><p>団体の情報を整えて、次の参加につなげましょう。</p></div><div class="operator-stats">${stats.map(([label,count,view])=>`<button class="card operator-stat" data-nav="${view}"><span>${label}</span><strong>${count}<small>件</small></strong><span class="hint">確認する →</span></button>`).join('')}</div><a class="btn btn-secondary" href="/operator.html#/waitingManage">ラウンジの様子を確認</a><h2>今日の運営メニュー</h2><div class="operator-actions">${d.role==='ADMIN'?'<section class="card live-card"><h3>団体を登録・確認する</h3><p>活動紹介、写真、連絡先を登録し、確認後に公開します。</p><button class="btn btn-primary" data-nav="admin" data-param="new">＋ 団体を登録</button><button class="btn btn-ghost" data-nav="admin">団体・審査を見る</button></section>':''}<section class="card live-card"><h3>募集をつくる・更新する</h3><p>前回の募集を複製して、次の活動を準備できます。</p><button class="btn btn-secondary" data-nav="org">募集管理へ</button></section><section class="card live-card"><h3>参加者に対応する</h3><p>申込みの承認、活動の連絡板、参加完了の記録をまとめて確認。</p><button class="btn btn-secondary" data-nav="participants">参加者対応へ</button></section>${d.role==='ADMIN'?'<section class="card live-card"><h3>利用者の声を確認する</h3><p>匿名で届いたご意見を、画面・種類ごとに集計して改善に使います。</p><button class="btn btn-secondary" data-nav="feedback">ご意見へ</button></section>':''}<section class="card live-card"><h3>運営画面へのご意見</h3><p>使いにくい点や不具合があれば、匿名で送れます。</p><button class="btn btn-ghost" data-feedback>ご意見・不具合を送る</button></section></div><p class="hint">申込みの承認・連絡は、自分が担当する団体の活動を表示します。</p>`);
 }
 function operatorParticipants(){
   const applications=(LIVE.dashboard?.applications||[]).filter(p=>p.owned);
@@ -3313,7 +3320,7 @@ function footerHTML(){
       <div class="footer-grid">
         <div><h4>学生の方</h4><nav><button data-nav="map">地図で探す</button><button data-nav="list">一覧で探す</button><button data-nav="mypage">マイページ</button></nav></div>
         <div><h4>活動とつながり</h4><nav><button data-nav="live">募集中の活動</button><button data-nav="myactivity">申込み・参加記録</button><button data-nav="saved">保存したコミュニティ</button><button data-nav="following">フォロー中</button></nav></div>
-        <div><h4>ご利用案内</h4><nav><button data-nav="guide">ご利用ガイド</button><button data-nav="safety">安心・安全への取り組み</button></nav></div>
+        <div><h4>ご利用案内</h4><nav><button data-nav="guide">ご利用ガイド</button><button data-nav="safety">安心・安全への取り組み</button><button data-feedback>ご意見・不具合を送る</button></nav></div>
       </div>
       <div class="footer-note">
         トビヨリは、群馬県内を対象とした実証版プロトタイプです。地図イラストは前橋市・高崎市エリアを中心に表示していますが、それ以外の市町村・大学の活動も一覧・絞り込みからご覧いただけます。「サンプル」と表示された団体・活動は体験用です。「募集中の活動」は運営が登録・確認した活動で、申込みを受け付けます。<br>
@@ -3434,6 +3441,99 @@ function renderNav(){
   const bTabs = document.getElementById('bottomTabs');
   bTabs.innerHTML = routes.map(r=>`<button class="tab-btn ${current.view===r.id?'active':''}" data-nav="${r.id}" aria-label="${r.label}" ${current.view===r.id?'aria-current="page"':''}>${icon(r.icon)}<span>${r.tabLabel||r.label}</span></button>`).join('');
 }
+/* ---------------- Feedback (ご意見): anonymous sending + operator analysis ---------------- */
+// Non-identifying context for analysis: which screens, how long, which device. No account, name or contact.
+const FEEDBACK_CONTEXT={pages:0,from:'',page:'',since:Date.now(),errors:[]};
+function trackFeedbackPage(){const page=location.hash||'#/home';if(page===FEEDBACK_CONTEXT.page)return;FEEDBACK_CONTEXT.from=FEEDBACK_CONTEXT.page;FEEDBACK_CONTEXT.page=page;FEEDBACK_CONTEXT.since=Date.now();FEEDBACK_CONTEXT.pages++;}
+window.addEventListener('hashchange',trackFeedbackPage);trackFeedbackPage();
+const rememberFeedbackError=message=>{FEEDBACK_CONTEXT.errors=[...FEEDBACK_CONTEXT.errors,String(message||'error').slice(0,200)].slice(-3);};
+window.addEventListener('error',e=>rememberFeedbackError(e.message));
+window.addEventListener('unhandledrejection',e=>rememberFeedbackError(e.reason?.message||e.reason));
+function feedbackClientContext(){
+ const ua=navigator.userAgent,w=innerWidth,h=innerHeight,mq=q=>!!window.matchMedia?.(q).matches;
+ const os=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1)?'iOS':/Android/.test(ua)?'Android':/Windows/.test(ua)?'Windows':/Mac OS X/.test(ua)?'macOS':/Linux/.test(ua)?'Linux':'other';
+ const browser=/Edg\//.test(ua)?'Edge':/SamsungBrowser/.test(ua)?'Samsung':/Firefox|FxiOS/.test(ua)?'Firefox':/Chrome|CriOS/.test(ua)?'Chrome':/Safari/.test(ua)?'Safari':'other';
+ return {device:w<700?'mobile':w<1024?'tablet':'desktop',context:{fromPage:FEEDBACK_CONTEXT.from,viewport:w+'x'+h,orientation:w>h?'landscape':'portrait',os,browser,
+  language:navigator.language||'',darkMode:mq('(prefers-color-scheme: dark)'),reducedMotion:mq('(prefers-reduced-motion: reduce)'),touch:navigator.maxTouchPoints>0,
+  installed:mq('(display-mode: standalone)'),secondsOnPage:Math.round((Date.now()-FEEDBACK_CONTEXT.since)/1000),pagesViewed:FEEDBACK_CONTEXT.pages,loadError:!!LIVE.error,recentErrors:FEEDBACK_CONTEXT.errors}};
+}
+const FEEDBACK_CATEGORIES={hard:'使いにくい・分かりにくい',bug:'不具合・エラー',idea:'こうしてほしい',good:'よかったこと',other:'その他'};
+function openFeedback(){
+ const page=FEEDBACK_CONTEXT.page;
+ openModal(`<div class="modal-head"><h3>ご意見・不具合を送る</h3><button class="modal-close" data-modal-close aria-label="閉じる">✕</button></div>
+ <p>いただいた声は、トビヨリの改善に使います。送信は匿名のため、返信はできません。</p>
+ <form id="feedbackForm"><div class="field"><label>どんな内容ですか？</label><div class="filter-row">${Object.entries(FEEDBACK_CATEGORIES).map(([k,v])=>`<button type="button" class="chip" data-feedback-category="${k}" aria-pressed="false">${v}</button>`).join('')}</div></div>
+ <div class="field"><label for="feedbackBody">くわしく教えてください</label><textarea id="feedbackBody" name="body" rows="5" maxlength="2000" placeholder="例：活動の申込みボタンが見つけにくかった"></textarea></div>
+ <div class="field"><label>トビヨリの使いやすさ（任意）</label><div class="filter-row">${[1,2,3,4,5].map(n=>`<button type="button" class="chip" data-feedback-rating="${n}" aria-pressed="false">${n}</button>`).join('')}</div><p class="hint">1：使いにくい ／ 5：使いやすい</p></div>
+ <p class="hint">名前・メールアドレス・電話番号は書かないでください（連絡先は自動で伏せ字になります）。分析のため、開いていた画面・端末の種類・画面サイズなど、個人を特定しない情報を一緒に送ります。</p>
+ <p class="live-form-error" role="alert"></p><button class="btn btn-primary btn-block" type="submit">送信する</button></form>`,root=>{
+  const f=root.querySelector('#feedbackForm');let category='',rating=null;
+  const choose=(attr,set)=>root.querySelectorAll(`[${attr}]`).forEach(b=>b.onclick=()=>{set(b.getAttribute(attr));f.querySelector('.live-form-error').textContent='';root.querySelectorAll(`[${attr}]`).forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',String(x===b));});});
+  choose('data-feedback-category',v=>{category=v;});choose('data-feedback-rating',v=>{rating=Number(v);});
+  f.onsubmit=async e=>{e.preventDefault();const error=f.querySelector('.live-form-error'),b=f.querySelector('[type=submit]');error.textContent='';
+   if(!category){error.textContent='どんな内容か選んでください。';return;}
+   if(!f.elements.body.value.trim()){error.textContent='内容を入力してください。';f.elements.body.focus();return;}
+   b.disabled=true;
+   try{const c=feedbackClientContext();await accountAPI('feedback','POST',{category,rating,body:f.elements.body.value,page,surface:OPERATOR_APP?'operator':'user',device:c.device,context:c.context});closeModal();toast('ご意見を送りました。ありがとうございます');}
+   catch(err){error.textContent=err.message||'送信できませんでした。';b.disabled=false;}};
+ });
+}
+// Any element with data-feedback opens the form (menus, footer, operator home).
+document.addEventListener('click',e=>{const b=e.target.closest?.('[data-feedback]');if(!b)return;e.preventDefault();openFeedback();});
+
+let FEEDBACK_ADMIN={loaded:false,loading:false,summary:null,list:null,filters:{status:'',category:'',page:'',q:''},error:''};
+const FEEDBACK_DEVICES={mobile:'スマホ',tablet:'タブレット',desktop:'PC'},FEEDBACK_ROLES={guest:'ゲスト',user:'利用者',organizer:'団体担当',admin:'運営'};
+// Operators read screen names, not routes; the route stays visible for exact filtering.
+const FEEDBACK_PAGE_NAMES={home:'ホーム',list:'活動を探す',regional:'地域コミュニティを探す',campus:'大学・サークルを探す',company:'企業を探す',map:'地図で探す',liveactivity:'活動の詳細',livecommunity:'団体の紹介',mypage:'マイページ',myactivity:'申込み・参加記録',notifications:'お知らせ',following:'フォロー中',saved:'保存した団体',serendipity:'よりみち発見',waiting:'よりみちラウンジ',guide:'ご利用ガイド',safety:'安心・安全',login:'ログイン',register:'新規登録',support:'相談の対応状況',offers:'オファー',manage:'運営ホーム',admin:'団体・審査',org:'募集管理',participants:'参加者対応',reports:'相談対応',feedback:'ご意見'};
+const feedbackPageName=page=>{const key=String(page||'').replace(/^#\//,'').split('/')[0];return page?(FEEDBACK_PAGE_NAMES[key]||key||'ホーム'):'画面不明';};
+const feedbackQuery=()=>new URLSearchParams(Object.entries(FEEDBACK_ADMIN.filters).filter(([,v])=>v)).toString();
+async function loadFeedbackAdmin(){
+ FEEDBACK_ADMIN.loading=true;
+ try{const q=feedbackQuery(),[summary,list]=await Promise.all([accountAPI('feedback/summary'),accountAPI('feedback'+(q?'?'+q:''))]);Object.assign(FEEDBACK_ADMIN,{summary,list,loaded:true,error:''});LIVE.feedbackNew=summary.newCount;}
+ catch(e){Object.assign(FEEDBACK_ADMIN,{loaded:true,error:e.message||'読み込めませんでした。'});}
+ finally{FEEDBACK_ADMIN.loading=false;}
+ if(current.view==='feedback')render();
+}
+function viewFeedbackPage(){
+ if(current.view!=='feedback')return null;
+ if(!accountUser)return viewAccount('login');
+ if(!LIVE.loaded)return liveShell('ご意見','<p role="status">読み込んでいます…</p>');
+ if(LIVE.dashboard?.role!=='ADMIN')return liveShell('ご意見','<p>ご意見の一覧は運営者だけが確認できます。</p>');
+ if(!FEEDBACK_ADMIN.loaded){if(!FEEDBACK_ADMIN.loading)void loadFeedbackAdmin();return liveShell('ご意見','<p role="status">読み込んでいます…</p>');}
+ if(FEEDBACK_ADMIN.error)return liveShell('ご意見',`<p class="live-form-error" role="alert">${escapeHtml(FEEDBACK_ADMIN.error)}</p><button class="btn btn-secondary" data-feedback-reload>もう一度読み込む</button>`);
+ const s=FEEDBACK_ADMIN.summary,l=FEEDBACK_ADMIN.list,f=FEEDBACK_ADMIN.filters,rate=v=>v==null?'—':Number(v).toFixed(1),maxWeek=Math.max(1,...s.weekly.map(w=>w.count));
+ const table=(head,rows)=>`<div class="feedback-table-wrap"><table class="feedback-table"><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${head.length}">まだありません</td></tr>`}</tbody></table></div>`;
+ const q=feedbackQuery();
+ return liveShell('ご意見',`<p>利用者から届いたご意見です。送信は匿名で、個人を特定する情報は保存していません。</p>
+ <div class="operator-stats"><div class="card operator-stat"><span>未確認</span><strong>${s.newCount}<small>件</small></strong></div><div class="card operator-stat"><span>これまでの合計</span><strong>${s.total}<small>件</small></strong></div><div class="card operator-stat"><span>使いやすさの平均</span><strong>${rate(s.averageRating)}<small>/ 5</small></strong></div></div>
+ <section class="card live-card"><h2>週ごとの件数（直近8週）</h2><div class="feedback-weeks">${s.weekly.slice().reverse().map(w=>`<div><b>${w.count}</b><span style="height:${Math.round(w.count/maxWeek*60)+2}px"></span><small>${w.weeksAgo?w.weeksAgo+'週前':'今週'}</small></div>`).join('')}</div></section>
+ <section class="card live-card"><h2>問題の多い画面</h2><p class="hint">「使いにくい・分かりにくい」「不具合・エラー」が多い順。画面名を押すと、その画面のご意見だけを表示します。</p>${table(['画面','使いにくい・不具合','合計','使いやすさ'],s.byPage.map(r=>[`<button class="btn btn-ghost btn-sm" data-feedback-page="${escapeHtml(r.page)}">${escapeHtml(feedbackPageName(r.page))}</button> <small class="hint">${escapeHtml(r.page)}</small>`,r.problems,r.count,rate(r.averageRating)]))}</section>
+ <section class="card live-card"><h2>種類・端末・送信者別</h2>${table(['区分','件数','使いやすさ'],[...s.byCategory.map(r=>[escapeHtml(s.categories[r.category]||r.category),r.count,rate(r.averageRating)]),...s.byDevice.map(r=>[FEEDBACK_DEVICES[r.device]||escapeHtml(r.device),r.count,rate(r.averageRating)]),...s.byRole.map(r=>[FEEDBACK_ROLES[r.role]||escapeHtml(r.role),r.count,rate(r.averageRating)])])}</section>
+ <h2>ご意見の一覧</h2>
+ <form id="feedbackFilter" class="card live-card"><div class="feedback-filter-grid"><div class="field"><label for="fbStatus">対応状況</label><select id="fbStatus" name="status"><option value="">すべて</option>${Object.entries(s.statuses).map(([k,v])=>`<option value="${k}" ${f.status===k?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label for="fbCategory">種類</label><select id="fbCategory" name="category"><option value="">すべて</option>${Object.entries(s.categories).map(([k,v])=>`<option value="${k}" ${f.category===k?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label for="fbPage">画面</label><input id="fbPage" type="text" name="page" value="${escapeHtml(f.page)}" placeholder="#/home など"></div><div class="field"><label for="fbQuery">キーワード</label><input id="fbQuery" type="text" name="q" value="${escapeHtml(f.q)}" placeholder="内容・タグ・メモから探す"></div></div><div class="live-navigation"><button class="btn btn-primary" type="submit">絞り込む</button><a class="btn btn-secondary" href="/api/feedback/export.csv${q?'?'+escapeHtml(q):''}" download>この条件でCSVを書き出す</a></div></form>
+ <p>${l.total}件${l.total>l.items.length?`（新しい順に${l.items.length}件を表示）`:''}</p>
+ ${l.items.map(feedbackCardHTML).join('')||'<p>条件に合うご意見はありません。</p>'}`);
+}
+function feedbackCardHTML(r){
+ const c=r.context||{},s=FEEDBACK_ADMIN.summary;
+ const facts=[['画面',r.page],['直前の画面',c.fromPage],['端末',FEEDBACK_DEVICES[r.device]],['OS・ブラウザ',[c.os,c.browser].filter(Boolean).join(' / ')],['表示サイズ',c.viewport],['画面にいた時間',c.secondsOnPage!=null?c.secondsOnPage+'秒':''],['閲覧した画面数',c.pagesViewed],['送信者',FEEDBACK_ROLES[r.role]],['登録からの期間',c.accountAge],['申込み件数',c.applications],['ダークモード',c.darkMode?'はい':''],['読み込みエラー',c.loadError?'あり':''],['直近の画面エラー',(c.recentErrors||[]).join(' | ')],['アプリの版',r.release]].filter(([,v])=>v!==undefined&&v!==null&&v!=='');
+ return `<article class="card live-card" data-feedback-id="${escapeHtml(r.id)}"><div class="live-navigation"><span class="badge">${escapeHtml(s.categories[r.category]||r.category)}</span>${r.rating?`<span class="badge badge-neutral">使いやすさ ${r.rating}/5</span>`:''}<span class="badge ${r.status==='NEW'?'badge-warn':'badge-neutral'}">${escapeHtml(s.statuses[r.status]||r.status)}</span></div><p class="live-copy">${escapeHtml(r.body)}</p><p class="hint">${escapeHtml(liveDate(r.createdAt))} ／ ${escapeHtml(feedbackPageName(r.page))} ／ ${escapeHtml(FEEDBACK_DEVICES[r.device]||'')}${r.tags.length?' ／ タグ：'+escapeHtml(r.tags.join('、')):''}</p><details><summary>送信時の状況</summary>${facts.map(([k,v])=>`<p class="live-copy"><b>${k}：</b>${escapeHtml(String(v))}</p>`).join('')}</details>${r.note?`<p class="live-copy"><b>運営メモ：</b>${escapeHtml(r.note)}</p>`:''}<details class="feedback-triage"><summary>対応を記録（状況・タグ・メモ）</summary><form><div class="feedback-filter-grid"><div class="field"><label for="fs-${escapeHtml(r.id)}">対応状況</label><select id="fs-${escapeHtml(r.id)}" name="status">${Object.entries(s.statuses).map(([k,v])=>`<option value="${k}" ${r.status===k?'selected':''}>${v}</option>`).join('')}</select></div><div class="field"><label for="ft-${escapeHtml(r.id)}">タグ（「、」区切り）</label><input id="ft-${escapeHtml(r.id)}" type="text" name="tags" value="${escapeHtml(r.tags.join('、'))}" placeholder="例：申込み、ナビ"></div></div><div class="field"><label for="fn-${escapeHtml(r.id)}">運営メモ</label><textarea id="fn-${escapeHtml(r.id)}" name="note" rows="2" maxlength="2000">${escapeHtml(r.note)}</textarea></div><button class="btn btn-secondary btn-sm" type="submit">保存</button></form></details></article>`;
+}
+function bindFeedbackAdmin(scope){
+ const reload=filters=>{FEEDBACK_ADMIN.filters=filters;FEEDBACK_ADMIN.loaded=false;render();};
+ scope.querySelector('#feedbackFilter')?.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.target);reload({status:fd.get('status')||'',category:fd.get('category')||'',page:String(fd.get('page')||'').trim(),q:String(fd.get('q')||'').trim()});});
+ scope.querySelectorAll('[data-feedback-page]').forEach(b=>b.onclick=()=>reload({...FEEDBACK_ADMIN.filters,status:'',page:b.dataset.feedbackPage}));
+ scope.querySelector('[data-feedback-reload]')?.addEventListener('click',()=>reload(FEEDBACK_ADMIN.filters));
+ scope.querySelectorAll('.feedback-triage form').forEach(form=>form.onsubmit=async e=>{
+  e.preventDefault();const id=form.closest('[data-feedback-id]').dataset.feedbackId,b=form.querySelector('button');b.disabled=true;
+  try{
+   const updated=await accountAPI('feedback/'+id,'POST',{status:form.elements.status.value,tags:form.elements.tags.value.split(/[、,]/).map(t=>t.trim()).filter(Boolean),note:form.elements.note.value});
+   const i=FEEDBACK_ADMIN.list.items.findIndex(x=>x.id===id);if(i>=0)FEEDBACK_ADMIN.list.items[i]=updated;
+   FEEDBACK_ADMIN.summary=await accountAPI('feedback/summary');LIVE.feedbackNew=FEEDBACK_ADMIN.summary.newCount;toast('保存しました');render();
+  }catch(err){toast(err.message||'保存できませんでした');b.disabled=false;}
+ });
+}
+
 function openMoreSheet(){
   openModal(`
     <div class="modal-head"><h3 style="font-size:17px;font-weight:900;">その他のメニュー</h3><button class="modal-close" data-modal-close>✕</button></div>
@@ -3445,6 +3545,7 @@ function openMoreSheet(){
       <button class="btn btn-ghost btn-block" data-nav="saved" data-modal-close>保存したコミュニティ</button><button class="btn btn-ghost btn-block" data-nav="following" data-modal-close>フォロー中</button><button class="btn btn-ghost btn-block" data-nav="offers" data-modal-close>コミュニティからのオファー</button><button class="btn btn-ghost btn-block" data-nav="support" data-modal-close>相談の対応状況・ブロック</button>
       <button class="btn btn-ghost btn-block" data-nav="notifications" data-modal-close>お知らせ</button>
       <button class="btn btn-ghost btn-block" data-nav="safety" data-modal-close>${icon('shield')}安心・安全への取り組み</button>
+      <button class="btn btn-secondary btn-block" data-feedback>ご意見・不具合を送る</button>
     </div>
   `);
 }

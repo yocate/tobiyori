@@ -19,6 +19,7 @@
 !/manage-tobiyori.cjs
 !/app.cjs
 !/tx.cjs
+!/feedback.cjs
 !/wrangler.jsonc
 !/cloudflare/
 !/scripts/

@@ -109,11 +109,20 @@ async function api(request, env, ctx) {
       catch (e) { if (e.status) return json(e.status, { error: e.message }); throw e; }
     }
   }
-  // The database object may still run the previous deployment; it restarts itself when versions differ.
-  if (env.CF_VERSION?.id) headers.set(INTERNAL + 'version', env.CF_VERSION.id);
+  // The database object may still run the previous deployment; it restarts itself for a newer one.
+  if (env.CF_VERSION?.id) headers.set(INTERNAL + 'version', `${env.CF_VERSION.id} ${env.CF_VERSION.timestamp || ''}`);
   const forward = () => database(env).fetch(new Request(request.url, { method: request.method, headers, body, redirect: 'manual' }));
   let response;
-  try { response = await forward(); } catch (e) { if (!e?.message?.includes('code updated')) throw e; response = await forward(); }
+  // An object that resets itself (new deployment) throws before handling anything, so retrying is safe.
+  // The app answers its own errors with JSON, so a throw here means the object itself went away.
+  for (let attempt = 0; ; attempt++) {
+    try { response = await forward(); break; }
+    catch (e) {
+      if (attempt >= 2) throw e;
+      console.warn(JSON.stringify({ event: 'db-retry', attempt, error: String(e?.message || e).slice(0, 200) }));
+      await new Promise(r => setTimeout(r, 100 * (attempt + 1)));
+    }
+  }
   // Do not keep images uploaded for a write the database rejected.
   if (created.length && response.status >= 400) ctx.waitUntil(deleteMedia(env.MEDIA, created));
   return response;
@@ -153,8 +162,12 @@ export class TobiyoriDatabase extends DurableObject {
           async verify(_password, _stored, req) { return req.headers[INTERNAL + 'password-ok'] === '1'; },
         },
         community: { schedule: false, tidyEveryMs: 15_000 },
+        release: env.CF_VERSION?.id || 'unknown',
       });
       this.syncAdmins();
+      // One-off (2026-10-16): remove feedback rows sent by deployment checks, matched by their exact text.
+      // Safe to delete this line after it has run once in production.
+      this.db.prepare("DELETE FROM app_feedback WHERE role='guest' AND body IN ('デプロイ確認（運営による自動テスト）','Cloudflare確認用のご意見')").run();
       if ((await ctx.storage.getAlarm()) === null) await ctx.storage.setAlarm(Date.now() + ALARM_MS);
     });
   }
@@ -177,8 +190,11 @@ export class TobiyoriDatabase extends DurableObject {
   }
 
   async fetch(request) {
-    const wanted = request.headers.get(INTERNAL + 'version');
-    if (wanted && this.env.CF_VERSION?.id && wanted !== this.env.CF_VERSION.id) this.ctx.abort('code updated');
+    // Restart only for a request from a NEWER deployment. During a rollout old and new Workers run side by
+    // side; restarting on any mismatch made the object bounce between versions and fail requests.
+    const [wantedId, wantedAt] = (request.headers.get(INTERNAL + 'version') || '').split(' ');
+    const own = this.env.CF_VERSION;
+    if (wantedId && own?.id && wantedId !== own.id && Date.parse(wantedAt) > Date.parse(own.timestamp)) this.ctx.abort('code updated');
     const req = await nodeRequest(request);
     const { res, toResponse } = nodeResponse();
     if ((await this.app.handle(req, res)) === false) return json(404, { error: 'ページが見つかりません。' });

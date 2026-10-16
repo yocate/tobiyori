@@ -78,6 +78,8 @@ npm run test:cloudflare   # 別ターミナルで
 
 ## 運用
 
+- **ご意見**：利用者・団体担当・運営の誰でも、「その他」メニューやフッターから匿名で送れる。運営画面の「ご意見」で、画面別・種類別の集計、対応状況とタグの記録、CSV出力（Excelでそのまま開ける形式）ができる。アカウント・IP・連絡先は保存しない。送信時のアプリの版も記録するので、改善の前後を比べられる。
+
 - **ログ**：ダッシュボードの Workers → Observability で確認できる。Cookie・パスワード・トークンは記録しない。
 - **復旧**：
   - DOの更新は30日間、任意の時点に戻せる（`ctx.storage.getBookmarkForTime` → `onNextSessionRestoreBookmark`）。

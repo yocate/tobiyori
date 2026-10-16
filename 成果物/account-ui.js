@@ -8,7 +8,7 @@ let accountUser = null, accountReady = false, accountRevision = 0;
 let pendingAccountState = null, accountSaving = null, accountError = '', accountEpoch = 0, accountConflict = false;
 async function accountAPI(url, method='GET', data) {
   const headers=data?{'Content-Type':'application/json'}:{};
-  if(accountUser && (['state','logout'].includes(url)||url.startsWith('live/')))headers['X-Tobiyori-Account']=accountUser.id;
+  if(accountUser && (['state','logout'].includes(url)||url.startsWith('live/')||url.startsWith('feedback/')))headers['X-Tobiyori-Account']=accountUser.id;
   const response = await fetch('/api/'+url, {method, credentials:'same-origin',cache:'no-store',headers,body:data?JSON.stringify(data):undefined});
   const result = await response.json();
   if(!response.ok) throw Object.assign(new Error(result.error || '接続できませんでした。'),{status:response.status});
