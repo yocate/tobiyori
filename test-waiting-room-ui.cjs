@@ -34,12 +34,20 @@ async function open(user,url){const page=await user.context.newPage();page.on('p
  await p.setViewportSize({width:1280,height:900});await p.goto(base+'/#/livecommunity/'+c.id);
  assert.equal(await p.locator('.community-hosted [data-waiting-card]').count(),2);await p.locator('[data-waiting-card=\"'+a.id+'\"]').click();
  async function enter(page,name){await page.locator('#waitingJoinForm input[name=name]').fill(name);await page.locator('#waitingJoinForm select').selectOption('adult');await page.locator('#waitingJoinForm input[type=checkbox]').check();await page.getByRole('button',{name:'気になる仲間を待つ',exact:true}).click();await page.locator('#waitingJoinForm').waitFor({state:'detached'});}
- await enter(p,'まちの参加者A');await p.locator('[data-waiting-state="WAITING"]').waitFor();
+ assert((await p.locator('.waiting-purpose').innerText()).includes('申込みではありません'));assert((await p.locator('.waiting-todo').innerText()).includes('気になる仲間を待つ'));
+ assert((await p.locator('.waiting-trust').innerText()).includes('口コミ'));assert((await p.locator('.waiting-trust').innerText()).includes('トビヨリ運営'));
+ await enter(p,'まちの参加者A');await p.locator('[data-waiting-state="WAITING"]').waitFor();await p.locator('.lounge-preview').waitFor();
  const p2=await open(two,'/#/waiting/'+a.id);await enter(p2,'まちの参加者B');await p2.locator('[data-waiting-state="WAITING"]').waitFor();assert.equal(await p2.locator('.waiting-people li').count(),0);
  const p3=await open(three,'/#/waiting/'+a.id);await enter(p3,'まちの参加者C');await p3.locator('[data-waiting-state="MATCHED"]').waitFor();assert.equal(await p3.locator('.waiting-people li').count(),3);
  await p.getByRole('button',{name:'最新の様子を見る',exact:true}).click();await p.locator('[data-waiting-state="MATCHED"]').waitFor();
+ assert.equal(await p.locator('.waiting-phrase-group').count(),4);assert((await p.locator('.flow-card .flow-now').innerText()).includes('ラウンジで検討中'));
  await p.locator('[data-waiting-greet="hello"]').click();await p.locator('.waiting-greeting.mine').waitFor();
  await p2.reload();await p2.locator('.waiting-greeting').waitFor();assert((await p2.locator('.waiting-greeting').innerText()).includes('まちの参加者A'));
+ await p.locator('.lounge-avatar').nth(2).waitFor();assert.equal(await p.locator('.lounge-avatar').count(),3);
+ const floor=p.locator('.lounge-floor'),box=await floor.boundingBox();await floor.click({position:{x:box.width*0.2,y:box.height*0.8}});await p.locator('[data-lounge-stamp="wave"]').click();
+ await p2.waitForFunction(()=>{const a=[...document.querySelectorAll('.lounge-avatar')].find(a=>a.textContent.includes('まちの参加者A'));return a&&parseFloat(a.style.left)<25&&parseFloat(a.style.top)>70&&a.querySelector('.lounge-bubble').textContent==='👋';},null,{timeout:8000});
+ assert((await p2.locator('[data-lounge-history]').innerText()).includes('まちの参加者Aさんが「手をふる」'));
+ await p2.waitForFunction(()=>document.querySelector('[data-lounge-online]')?.textContent.match(/ひろばにいる：[23]人/),null,{timeout:8000});
  assert.equal((await api(one,'dashboard')).applications.length,0,'Waiting room is not an application');
  const room=await api(outsider,'waiting-room/'+a.id);assert.deepEqual(room.peers,[]);assert.deepEqual(room.greetings,[]);
  assert(!JSON.stringify(await api(one,'waiting-room/'+a.id)).includes('PRIVATE_'));
@@ -50,6 +58,22 @@ async function open(user,url){const page=await user.context.newPage();page.on('p
  await operatorPage.goto(base+'/operator.html#/waitingManage');await operatorPage.locator('[data-waiting-operator]').getByText('グループ 1').waitFor();assert((await operatorPage.locator('[data-waiting-operator]').innerText()).includes('まちの参加者A'));
  await stop();await start();await p.goto(base+'/#/waiting/'+a.id);await p.locator('.waiting-greeting.mine').waitFor();assert.equal(await p.locator('.waiting-people li').count(),3);
  await p3.getByRole('button',{name:'ラウンジから退出',exact:true}).click();await p3.locator('#waitingJoinForm').waitFor();await p.getByRole('button',{name:'最新の様子を見る',exact:true}).click();await p.locator('[data-waiting-state="WAITING"]').waitFor();assert.equal(await p.locator('.waiting-people li').count(),0);
+ // 参加者ゼロでも主催者に質問でき、回答は活動ページに名前なしで公開される
+ await p.goto(base+'/#/liveactivity/'+a.id);await p.locator('[data-question-form]').waitFor();
+ assert((await p.locator('[data-flow] .flow-now').innerText()).includes('ラウンジで検討中'));assert.equal(await p.locator('.apply-kinds small').count(),3);
+ await p.locator('[data-question-template]').first().click();assert.equal(await p.locator('[data-question-form] textarea').inputValue(),'初めてでも参加できますか？');
+ await p.locator('[data-question-form] button.btn-primary').click();await p.locator('.question-list.mine').waitFor();
+ await operatorPage.goto(base+'/operator.html#/org');await operatorPage.locator('[data-question-answer]').waitFor();assert(!(await operatorPage.locator('[data-question-inbox]').innerText()).includes('まちの参加者A'));
+ await operatorPage.locator('[data-question-answer] textarea').fill('はい、初めての方も多い活動です。');await operatorPage.getByRole('button',{name:'回答して公開する',exact:true}).click();await operatorPage.getByText('回答待ちの質問はありません。',{exact:true}).waitFor();
+ const viewer=await open(outsider,'/#/liveactivity/'+a.id);await viewer.locator('.question-a').waitFor();assert((await viewer.locator('.question-list').innerText()).includes('はい、初めての方も多い活動です。'));
+ // 申込みの前に流れが分かり、申込み後は「承認待ち」「参加確定」と次にすることが切り替わる
+ await p.reload();await p.locator('[data-live-apply][data-kind=体験参加]').click();await p.locator('#liveApplyForm').waitFor();assert((await p.locator('.modal .apply-steps').innerText()).includes('まだ参加確定ではありません'));
+ await p.locator('#liveApplyForm [name=year]').selectOption('大学1年生');await p.locator('#liveApplyForm button.btn-primary').click();await p.waitForURL('**/#/myactivity');
+ await p.locator('.live-card .flow-next').first().waitFor();assert((await p.locator('#app').innerText()).includes('申込み済み（承認待ち）'));
+ await p.goto(base+'/#/liveactivity/'+a.id);await p.locator('.flow-card .flow-now').waitFor();assert((await p.locator('.flow-card .flow-now').innerText()).includes('申込み済み（団体の確認待ち）'));
+ const application=(await api(owner,'dashboard')).applications.find(x=>x.activity_id===a.id&&x.owned);await api(owner,'applications/'+application.id+'/approve',{});
+ await p.reload();await p.locator('.flow-card .flow-now').waitFor();assert((await p.locator('.flow-card .flow-now').innerText()).includes('参加確定'));
+ await p.goto(base+'/#/waiting/'+a.id);await p.locator('[data-waiting-state]').waitFor();assert((await p.locator('.flow-card .flow-now').innerText()).includes('参加確定'));
  const guest=await browser.newContext();const guestPage=await guest.newPage();await guestPage.goto(base+'/#/waiting/'+a.id);await guestPage.getByRole('link',{name:'ログインして使う',exact:true}).waitFor();assert.equal(await guestPage.locator('#waitingJoinForm').count(),0);
- assert.deepEqual(failures,[]);console.log('PASS: direct lounge entry from community listings; reviewed community event/volunteer creation, form fields and duplication, grouped listings, pre-application matching, preset greetings, private identities, operator view, exit, restart persistence, guest gate and mobile layout');
+ assert.deepEqual(failures,[]);console.log('PASS: direct lounge entry from community listings; reviewed community event/volunteer creation, form fields and duplication, grouped listings, pre-application matching, preset greetings, shared 2D plaza movement and stamps, private identities, operator view, exit, lounge purpose/todo guides, grouped phrases, public Q&A, participation flow states, restart persistence, guest gate and mobile layout');
 }finally{if(browser)await browser.close();await stop();const target=path.resolve(dir);assert.equal(path.dirname(target),path.resolve(os.tmpdir()));assert(path.basename(target).startsWith('tobiyori-waiting-ui-'));fs.rmSync(target,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});

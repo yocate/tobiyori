@@ -41,7 +41,7 @@ const ui=context.testUI;
  ui.setLive({catalog:{communities:[],activities:[]},loaded:true,dashboard});ui.setMypageTab('apps');assert(ui.viewMypage().includes('実際の参加記録'));assert(ui.viewMypage().includes('活動の連絡板'));
  assert(!ui.viewMypage().includes('data-live-message='));ui.setMypageTab('history');assert(!ui.viewMypage().includes('実際の参加記録'));
  ui.setMypageTab('following');assert(ui.viewMypage().includes('フォロー済み団体'));
- assert(ui.liveApplyControls({id:'real',status:'PUBLISHED'}).includes('申込み状況・連絡を確認'));assert(!ui.liveApplyControls({id:'real',status:'PUBLISHED'}).includes('data-live-apply'));
+ assert(ui.liveApplyControls({id:'real',status:'PUBLISHED'}).includes('参加確定'));assert(ui.liveApplyControls({id:'real',status:'PUBLISHED'}).includes('集合場所・連絡板を見る'));assert(!ui.liveApplyControls({id:'real',status:'PUBLISHED'}).includes('data-live-apply'));
  assert(ui.liveHomeActivitiesHTML().includes('自分の申込み・参加記録（1件）'));
  assert(ui.liveVerificationHTML({verification:{checkedBy:'運営',checkedAt:'2026-09-25',items:['代表者の本人確認']}}).includes('参加人数・口コミ・ポイントとは別'));
  assert(!ui.liveReviewControls('real').includes('data-live-review-edit'));

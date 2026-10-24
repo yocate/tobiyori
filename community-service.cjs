@@ -13,6 +13,7 @@ const id=()=>crypto.randomUUID();
 const MEDIA_URL=/^\/media\/[0-9a-f]{64}\.(jpg|png|webp)$/;
 const bad=(status,message)=>Object.assign(new Error(message),{status});
 const now=()=>new Date().toISOString();
+const STALE_DAYS=90;
 function text(value,max=3000){if(typeof value!=='string'||value.length>max)throw bad(400,'入力が長すぎるか、形式が違います。');return value.trim();}
 function required(value,label,max=3000){const v=text(value,max);if(!v)throw bad(400,label+'を入力してください。');return v;}
 function date(value){const d=Date.parse(value);if(!Number.isFinite(d))throw bad(400,'開催日時を確認してください。');return new Date(d).toISOString();}
@@ -58,6 +59,8 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
  CREATE TABLE IF NOT EXISTS live_form_drafts(user_id TEXT NOT NULL REFERENCES accounts(id),draft_key TEXT NOT NULL,content TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,draft_key));
  CREATE TABLE IF NOT EXISTS live_offers(id TEXT PRIMARY KEY,activity_id TEXT NOT NULL REFERENCES live_activities(id),user_id TEXT NOT NULL REFERENCES accounts(id),body TEXT NOT NULL,reason TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'NEW',created_at TEXT NOT NULL,UNIQUE(activity_id,user_id));
  CREATE TABLE IF NOT EXISTS live_offer_campaigns(id TEXT PRIMARY KEY,community_id TEXT NOT NULL REFERENCES live_communities(id),created_at TEXT NOT NULL,sent_count INTEGER NOT NULL);`);
+ // auto_paused: 長く確認・活動がないため自動で一覧から外した印。担当者の確認・再開で戻る。
+ if(!db.prepare('PRAGMA table_info(live_communities)').all().some(c=>c.name==='auto_paused'))db.exec('ALTER TABLE live_communities ADD COLUMN auto_paused INTEGER NOT NULL DEFAULT 0');
  db.exec('CREATE TABLE IF NOT EXISTS live_journey_badges(user_id TEXT NOT NULL REFERENCES accounts(id),chapter INTEGER NOT NULL CHECK(chapter>0),earned_at TEXT NOT NULL,PRIMARY KEY(user_id,chapter));');
  db.exec('CREATE TABLE IF NOT EXISTS live_participation_badges(user_id TEXT NOT NULL REFERENCES accounts(id),badge_key TEXT NOT NULL,data TEXT NOT NULL,earned_at TEXT NOT NULL,PRIMARY KEY(user_id,badge_key));');
  const engagement=require('./community-engagement.cjs').createCommunityEngagement({db});
@@ -73,6 +76,7 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
  function audit(user,action,target,note=''){run('INSERT INTO live_audit VALUES(?,?,?,?,?,?)',id(),user.id,action,target,note,now());}
  const conditions=createParticipationConditions({db,notify,audit,activity,validForReview});
  const waitingRooms=require('./waiting-room.cjs').createWaitingRooms({db,notify,activity,blocked,conditions,isAdmin:admin});
+ const questions=require('./activity-questions.cjs').createActivityQuestions({db,activity,blocked,notify,isAdmin:admin});
  const serendipity=createSerendipity({db,activitiesForUser:user=>all("SELECT a.* FROM live_activities a JOIN live_communities c ON c.id=a.community_id WHERE a.status='PUBLISHED' AND c.status='VERIFIED' AND c.paused=0 ORDER BY a.starts_at")
    .filter(a=>!isCareerListing(JSON.parse(a.data))&&!blocked(user,a.community_id)&&!conditions.pending(a.id)&&org(a.community_id).owner_id!==user.id&&listingDeadline(a)>now()&&a.starts_at>now())
    .filter(a=>!one("SELECT 1 FROM live_applications WHERE activity_id=? AND user_id=? AND status<>'CANCELLED'",a.id,user.id)&&one("SELECT COUNT(*) AS n FROM live_applications WHERE activity_id=? AND status='APPROVED'",a.id).n<a.capacity)
@@ -87,7 +91,14 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
    }
    for(const a of all("SELECT DISTINCT a.id,a.title,c.owner_id FROM live_activities a JOIN live_communities c ON c.id=a.community_id JOIN live_applications p ON p.activity_id=a.id WHERE p.status='APPROVED' AND a.ends_at<>'' AND a.ends_at<=?",now()))notify(a.owner_id,'「'+a.title+'」の開催が終了しました。実際の参加を確認し、活動完了を記録してください。','org','complete-reminder:'+a.id);
    const due=new Date(Date.now()-60*86400000).toISOString();
-   for(const c of all("SELECT * FROM live_communities WHERE confirmed_at<? AND status='VERIFIED' AND paused=0",due))notify(c.owner_id,'団体情報が今も正しいか確認してください。変更がなければワンタップで更新できます。','org','remind:'+c.id+':'+c.confirmed_at);
+   for(const c of all("SELECT * FROM live_communities WHERE confirmed_at<? AND status='VERIFIED' AND paused=0",due))notify(c.owner_id,'団体情報が今も正しいか確認してください。確認や活動が90日間ないと、一覧への表示を休止します。変更がなければワンタップで更新できます。','org','remind:'+c.id+':'+c.confirmed_at);
+   // 情報確認から90日たち、予定中の募集も直近90日の募集の動きもない団体は「活動していない」とみなして一覧から外す
+   const stale=new Date(Date.now()-STALE_DAYS*86400000).toISOString();
+   for(const c of all("SELECT * FROM live_communities c WHERE c.status='VERIFIED' AND c.paused=0 AND c.confirmed_at<? AND NOT EXISTS (SELECT 1 FROM live_activities a WHERE a.community_id=c.id AND (a.updated_at>? OR (a.status='PUBLISHED' AND a.starts_at>?) OR (a.status IN ('PUBLISHED','CLOSED') AND a.ends_at>?)))",stale,stale,now(),stale)){
+     run('UPDATE live_communities SET paused=1,auto_paused=1,updated_at=? WHERE id=? AND paused=0',now(),c.id);
+     notify(c.owner_id,'「'+c.name+'」は90日間、情報の確認や募集の動きがなかったため、一覧への表示を休止しました。団体情報を確認すると、すぐに再表示されます。','org','stale:'+c.id+':'+c.confirmed_at);
+     audit({id:'system'},'community_auto_pause',c.id);
+   }
  }
  let tidiedAt=0;function tidyDue(){const t=Date.now();if(t-tidiedAt<tidyEveryMs)return;tidiedAt=t;tidy();}
  const timer=schedule?setInterval(tidy,60000):null;timer?.unref();tidy();
@@ -117,7 +128,7 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
  }
  function publicReview(r){return {id:r.id,activityId:r.activity_id,communityId:r.community_id,activityTitle:r.activity_title,rating:r.rating,text:r.body,anonymous:true,author:'匿名の参加者',createdAt:r.created_at,updatedAt:r.updated_at};}
  const reviewSelect="SELECT r.*,a.community_id,a.title AS activity_title,u.nickname FROM live_reviews r JOIN live_activities a ON a.id=r.activity_id JOIN accounts u ON u.id=r.user_id JOIN live_applications p ON p.activity_id=r.activity_id AND p.user_id=r.user_id AND p.status='DONE'";
- function publicOrg(c){const verification=one('SELECT checked_at FROM live_community_verifications WHERE community_id=?',c.id);return {id:c.id,name:c.name,city:c.city,...JSON.parse(c.data),status:c.status,paused:!!c.paused,confirmedAt:c.confirmed_at,updatedAt:c.updated_at,buzz:buzz(c.id),verification:verification?{checkedAt:verification.checked_at,checkedBy:'トビヨリ運営',items:['代表者の本人確認','活動の実態・目的','掲載同意']}:null};}
+ function publicOrg(c){const verification=one('SELECT checked_at FROM live_community_verifications WHERE community_id=?',c.id);return {id:c.id,name:c.name,city:c.city,...JSON.parse(c.data),status:c.status,paused:!!c.paused,autoPaused:!!c.auto_paused,confirmedAt:c.confirmed_at,updatedAt:c.updated_at,buzz:buzz(c.id),verification:verification?{checkedAt:verification.checked_at,checkedBy:'トビヨリ運営',items:['代表者の本人確認','活動の実態・目的','掲載同意']}:null};}
  function publicActivity(a,privateAccess=false){const d=JSON.parse(a.data);if(!privateAccess){delete d.location;delete d.emergency;}return {id:a.id,communityId:a.community_id,title:a.title,startsAt:a.starts_at,endsAt:a.ends_at,capacity:a.capacity,status:a.status,publishedAt:a.published_at,updatedAt:a.updated_at,changePending:!!conditions.pending(a.id),...d};}
  function listingDeadline(a){const d=JSON.parse(a.data);return d.deadline||(isRecruitment(d)?a.ends_at:a.starts_at);}
  function validForReview(a){
@@ -160,13 +171,20 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      const reviews=all(reviewSelect+' WHERE '+condition+' ORDER BY r.created_at DESC,r.id DESC LIMIT 20 OFFSET ?',target,offset).map(publicReview);
      return send({reviews,total,nextOffset:offset+reviews.length<total?offset+reviews.length:null});
    }
+   if(req.method==='GET'&&resource==='questions'&&key)return send(questions.list(key,user));
    if(!user)throw bad(401,'ログインしてください。');
    if(req.headers['x-tobiyori-account']!==user.id)throw bad(409,'別の画面でログイン状態が変わりました。再読み込みしてください。');
+   if(resource==='questions'){
+     if(req.method==='GET'&&!key)return send(questions.inbox(user));
+     if(req.method==='POST'&&key){const input=await readBody(req);if(!action)return send(questions.ask(key,user,input));if(action==='answer')return send(questions.answer(key,user,input));if(action==='hide')return send(questions.hide(key,user));}
+     throw bad(404,'質問の操作が見つかりません。');
+   }
    if(resource==='waiting-room'){
      if(req.method==='GET'&&!key)return send({joinedActivityIds:waitingRooms.joinedFor(user)});
      if(req.method==='GET'&&key==='operator')return send(waitingRooms.operatorSnapshot(user));
+     if(req.method==='GET'&&key&&action==='space')return send(waitingRooms.space(key,user));
      if(req.method==='GET'&&key&&!action)return send(waitingRooms.snapshot(key,user));
-     if(req.method==='POST'&&key){const input=await readBody(req);if(action==='join')return send(waitingRooms.join(key,user,input));if(action==='leave')return send(waitingRooms.leave(key,user));if(action==='greet')return send(waitingRooms.greet(key,user,input));}
+     if(req.method==='POST'&&key){const input=await readBody(req);if(action==='join')return send(waitingRooms.join(key,user,input));if(action==='leave')return send(waitingRooms.leave(key,user));if(action==='greet')return send(waitingRooms.greet(key,user,input));if(action==='move')return send(waitingRooms.move(key,user,input));if(action==='stamp')return send(waitingRooms.stamp(key,user,input));}
      throw bad(404,'待合室の操作が見つかりません。');
    }
    if(resource==='serendipity'){
@@ -313,8 +331,9 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
        if(!admin(user))throw bad(403,'運営者専用です。');const email=required(input.email,'引継ぎ先の登録メールアドレス',254).toLowerCase();const target=one('SELECT id FROM accounts WHERE email=?',email);if(!target)throw bad(400,'登録済みのアカウントを指定してください。');
        run('UPDATE live_communities SET owner_id=?,updated_at=? WHERE id=?',target.id,now(),key);notify(target.id,'団体の担当を引き継ぎました。','org');notify(c.owner_id,'団体の担当者が変更されました。','org');audit(user,'community_transfer',key,target.id);return send({ok:true});
      }
-     if(action==='confirm'){run('UPDATE live_communities SET confirmed_at=? WHERE id=?',now(),key);return send({ok:true});}
-     if(action==='pause'){run('UPDATE live_communities SET paused=?,updated_at=? WHERE id=?',input.paused===true?1:0,now(),key);return send({ok:true});}
+     // 自動休止は、担当者が情報を確認したら解除する。手動の休止はそのまま。
+     if(action==='confirm'){run('UPDATE live_communities SET confirmed_at=?,paused=CASE WHEN auto_paused=1 THEN 0 ELSE paused END,auto_paused=0 WHERE id=?',now(),key);return send({ok:true});}
+     if(action==='pause'){const paused=input.paused===true;run('UPDATE live_communities SET paused=?,auto_paused=0,updated_at=?,confirmed_at=CASE WHEN ?=0 AND auto_paused=1 THEN ? ELSE confirmed_at END WHERE id=?',paused?1:0,now(),paused?1:0,now(),key);return send({ok:true});}
      if(!admin(user))throw bad(403,'団体情報の登録・編集はアプリの運営者が行います。');
      const d=communityData(input),name=required(input.name,'団体名',100),city=required(input.city,'市町村',60),privateData=adminCommunityData(input.adminInfo===undefined?adminInfo(key):input.adminInfo);
      if(c.status==='VERIFIED')run('INSERT INTO live_community_changes VALUES(?,?,?) ON CONFLICT(community_id) DO UPDATE SET content=excluded.content,created_at=excluded.created_at',key,JSON.stringify({name,city,...d}),now());

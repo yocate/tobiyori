@@ -38,6 +38,8 @@ const errors=[];
  await applyFrom(members);assert.match(await sp.locator('#app').innerText(),/所属メンバーのみが対象/);await sp.locator('#liveApplyForm [name=memberConfirmed]').waitFor();
  await sp.locator('#liveApplyForm [name=year]').selectOption('大学1年生');await sp.locator('#liveApplyForm [name=memberConfirmed]').check();
  const applied=sp.waitForResponse(r=>r.url().includes('/api/live/apply/'));await sp.locator('#liveApplyForm button.btn-primary').click();assert.equal((await applied).status(),201);
+ // 申込み後、アプリは再読み込みを終えてから参加記録へ移る。それより先に次の画面へ移ると、後から画面を奪われる。
+ await sp.waitForURL('**/#/myactivity');await sp.locator('#liveApplyForm').waitFor({state:'detached'});
  assert.equal((await api('live/apply/'+members,stranger,{kind:'体験参加',year:'大学1年生'})).status,400);
  await applyFrom(open);assert.equal(await sp.locator('#liveApplyForm [name=memberConfirmed]').count(),0);await sp.locator('.modal-close').click();
 
