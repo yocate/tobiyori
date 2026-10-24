@@ -35,6 +35,18 @@ function openFeedback(){
    catch(err){error.textContent=err.message||'送信できませんでした。';b.disabled=false;}};
  });
 }
+// A small, always-available entry at the bottom left: people send feedback at the moment they get stuck.
+// It sits above the bottom tabs on phones, and steps aside while typing or while a dialog is open.
+function placeFeedbackButton(){
+ let b=document.getElementById('feedbackFab');
+ if(!b){b=document.createElement('button');b.id='feedbackFab';b.type='button';b.className='feedback-fab';b.dataset.feedback='';b.setAttribute('aria-label','ご意見・不具合を送る');b.innerHTML=`${icon('megaphone')}<span>ご意見</span>`;document.body.append(b);}
+ const tabs=document.getElementById('bottomTabs'),shown=tabs&&getComputedStyle(tabs).display!=='none'&&tabs.offsetHeight>0;
+ document.documentElement.style.setProperty('--feedback-fab-bottom',(shown?tabs.offsetHeight+12:20)+'px');
+}
+const hideFeedbackButton=()=>{const typing=document.activeElement?.matches?.('input:not([type=checkbox]):not([type=radio]),textarea,select');document.body.classList.toggle('feedback-fab-hidden',!!typing||!!document.getElementById('modalRoot')?.childElementCount);};
+document.addEventListener('focusin',hideFeedbackButton);document.addEventListener('focusout',()=>setTimeout(hideFeedbackButton,0));
+window.addEventListener('resize',()=>placeFeedbackButton());
+{const root=document.getElementById('modalRoot');if(root)new MutationObserver(hideFeedbackButton).observe(root,{childList:true});}
 // Any element with data-feedback opens the form (menus, footer, operator home).
 document.addEventListener('click',e=>{const b=e.target.closest?.('[data-feedback]');if(!b)return;e.preventDefault();openFeedback();});
 

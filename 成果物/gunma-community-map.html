@@ -539,6 +539,8 @@ body:not(.operator-app) .topbar-cta{display:flex}body:not(.operator-app) .topbar
 .live-register-form .registration-tag{display:inline-flex;align-items:center;flex:none;font-size:13px;font-weight:800;line-height:1.5;padding:5px 11px;border-radius:8px;letter-spacing:.03em}.registration-tag-required{background:#17513b;color:#fff}.registration-tag-optional{background:#e8eeeb;color:#354f43}.registration-tag-review{background:#fff0c7;color:#684814}.live-registration-required{border:2px solid #508665;border-top:5px solid #236143}.registration-description{color:#315943;line-height:1.7}.live-registration-options{border:1px solid #a5b9ac;border-radius:18px;margin:24px 0;overflow:hidden;background:#f6f9f5}.live-registration-options>summary{padding:22px;display:flex;align-items:center;gap:13px;cursor:pointer;list-style:none;min-height:64px;color:#234c35}.live-registration-options>summary::-webkit-details-marker{display:none}.live-registration-options>summary:after{content:'＋';font-size:25px;font-weight:600;margin-left:auto;flex:none}.live-registration-options[open]>summary:after{content:'−'}.live-registration-options>summary:hover{background:#eaf2e6}.live-registration-options>summary:focus-visible{outline:3px solid #39734e;outline-offset:-5px;border-radius:18px}.registration-option-title{font-weight:800;font-size:20px;line-height:1.5;min-width:0}.registration-option-title small{display:block;font-size:14px;font-weight:400;color:#4f6558;line-height:1.7;margin-top:5px}.live-registration-option-body{padding:0 20px 20px;border-top:1px solid #d3ded4}.registration-option-hint{font-size:14px;color:#3d5948;line-height:1.8;margin:20px 3px}.live-registration-option-body>.live-card{margin:16px 0}.live-registration-option-body>.live-card:last-child{margin-bottom:0}.live-register-form .live-registration-consent{background:#fffcf0;border-color:#dcca99}.live-registration-required input,.live-registration-required textarea,.live-registration-required select{scroll-margin-top:100px}
 @media(max-width:640px){.live-registration-options>summary{padding:18px 14px;gap:9px;align-items:flex-start}.registration-option-title{font-size:18px}.registration-option-title small{font-size:13px}.live-registration-option-body{padding:0 12px 12px}.live-register-form h2 small{width:auto;padding-left:0}.live-registration-options .live-card{padding:18px}.live-registration-options input,.live-registration-options select,.live-registration-options textarea{max-width:100%;box-sizing:border-box}}
 .live-register-form .live-registration-options{padding:0;border:1px solid #a5b9ac;border-radius:18px}
+.feedback-fab{position:fixed;left:16px;bottom:calc(var(--feedback-fab-bottom,20px) + env(safe-area-inset-bottom,0px));z-index:150;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border:1.5px solid #075333;border-radius:999px;background:#fff;color:#075333;font:inherit;font-size:14px;font-weight:700;box-shadow:0 4px 14px rgba(7,83,51,.18);cursor:pointer}.feedback-fab svg{width:18px;height:18px}.feedback-fab:hover{background:#F0F7E6}.feedback-fab:focus-visible{outline:3px solid #A8C7FA;outline-offset:2px}.feedback-fab-hidden .feedback-fab{display:none}
+body{padding-bottom:76px}@media(max-width:859px){body:not(.operator-app){padding-bottom:156px}}@media print{.feedback-fab{display:none}}
 /* Feedback (ご意見) */
 .feedback-table-wrap{overflow-x:auto}.feedback-table{width:100%;border-collapse:collapse;font-size:14px}.feedback-table th,.feedback-table td{text-align:left;padding:8px 10px;border-bottom:1px solid #E2E8DC;vertical-align:top}.feedback-table th{font-weight:700;color:#315D42;white-space:nowrap}
 .feedback-weeks{display:flex;gap:10px;align-items:flex-end;min-height:110px;overflow-x:auto}.feedback-weeks>div{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:44px}.feedback-weeks span{display:block;width:28px;background:#729372;border-radius:6px 6px 0 0}.feedback-weeks small{font-size:12px;color:#46614D;white-space:nowrap}
@@ -3552,6 +3554,7 @@ function openMoreSheet(){
 
 function render(){
   if(routeToSurface())return;
+  placeFeedbackButton();
   if(activeCircleMap){activeCircleMap.remove();activeCircleMap=null;}
   renderNav();
   const app = document.getElementById('app');
@@ -3595,6 +3598,18 @@ function render(){
   }
   if(current.view==='orgSignup'){
     bindOrgSignupActions();
+// A small, always-available entry at the bottom left: people send feedback at the moment they get stuck.
+// It sits above the bottom tabs on phones, and steps aside while typing or while a dialog is open.
+function placeFeedbackButton(){
+ let b=document.getElementById('feedbackFab');
+ if(!b){b=document.createElement('button');b.id='feedbackFab';b.type='button';b.className='feedback-fab';b.dataset.feedback='';b.setAttribute('aria-label','ご意見・不具合を送る');b.innerHTML=`${icon('megaphone')}<span>ご意見</span>`;document.body.append(b);}
+ const tabs=document.getElementById('bottomTabs'),shown=tabs&&getComputedStyle(tabs).display!=='none'&&tabs.offsetHeight>0;
+ document.documentElement.style.setProperty('--feedback-fab-bottom',(shown?tabs.offsetHeight+12:20)+'px');
+}
+const hideFeedbackButton=()=>{const typing=document.activeElement?.matches?.('input:not([type=checkbox]):not([type=radio]),textarea,select');document.body.classList.toggle('feedback-fab-hidden',!!typing||!!document.getElementById('modalRoot')?.childElementCount);};
+document.addEventListener('focusin',hideFeedbackButton);document.addEventListener('focusout',()=>setTimeout(hideFeedbackButton,0));
+window.addEventListener('resize',()=>placeFeedbackButton());
+{const root=document.getElementById('modalRoot');if(root)new MutationObserver(hideFeedbackButton).observe(root,{childList:true});}
   }
   if(current.view==='admin'){
     document.querySelectorAll('[data-atab]').forEach(b=>b.addEventListener('click', ()=>{ adminTab=b.dataset.atab; render(); }));
