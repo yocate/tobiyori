@@ -37,8 +37,8 @@ async function open(user,url){const page=await user.context.newPage();page.on('p
  assert((await p.locator('.waiting-purpose').innerText()).includes('申込みではありません'));assert((await p.locator('.waiting-todo').innerText()).includes('気になる仲間を待つ'));
  assert((await p.locator('.waiting-trust').innerText()).includes('口コミ'));assert((await p.locator('.waiting-trust').innerText()).includes('トビヨリ運営'));
  await enter(p,'まちの参加者A');await p.locator('[data-waiting-state="WAITING"]').waitFor();await p.locator('.lounge-preview').waitFor();
- const p2=await open(two,'/#/waiting/'+a.id);await enter(p2,'まちの参加者B');await p2.locator('[data-waiting-state="WAITING"]').waitFor();assert.equal(await p2.locator('.waiting-people li').count(),0);
- const p3=await open(three,'/#/waiting/'+a.id);await enter(p3,'まちの参加者C');await p3.locator('[data-waiting-state="MATCHED"]').waitFor();assert.equal(await p3.locator('.waiting-people li').count(),3);
+ const p2=await open(two,'/#/waiting/'+a.id);await enter(p2,'まちの参加者B');await p2.locator('[data-waiting-state="WAITING"]').waitFor();assert.equal(await p2.locator('.lounge-avatar').count(),0);
+ const p3=await open(three,'/#/waiting/'+a.id);await enter(p3,'まちの参加者C');await p3.locator('[data-waiting-state="MATCHED"]').waitFor();await p3.locator('.lounge-avatar').nth(2).waitFor();assert.equal(await p3.locator('.lounge-avatar').count(),3);
  await p.getByRole('button',{name:'最新の様子を見る',exact:true}).click();await p.locator('[data-waiting-state="MATCHED"]').waitFor();
  assert.equal(await p.locator('.waiting-phrase-group').count(),4);assert((await p.locator('.flow-card .flow-now').innerText()).includes('ラウンジで検討中'));
  await p.locator('[data-waiting-greet="hello"]').click();await p.locator('.waiting-greeting.mine').waitFor();
@@ -56,18 +56,18 @@ async function open(user,url){const page=await user.context.newPage();page.on('p
  await p.goto(base+'/#/waiting');await p.locator('.waiting-invite').waitFor();await p.locator('.waiting-invite').screenshot({path:path.join(images,'waiting-mobile.png')});assert(await p.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
  await p.goto(base+'/#/livecommunity/'+c.id);await p.locator('.community-hosted').screenshot({path:path.join(images,'community-events-mobile.png')});assert(await p.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
  await operatorPage.goto(base+'/operator.html#/waitingManage');await operatorPage.locator('[data-waiting-operator]').getByText('グループ 1').waitFor();assert((await operatorPage.locator('[data-waiting-operator]').innerText()).includes('まちの参加者A'));
- await stop();await start();await p.goto(base+'/#/waiting/'+a.id);await p.locator('.waiting-greeting.mine').waitFor();assert.equal(await p.locator('.waiting-people li').count(),3);
- await p3.getByRole('button',{name:'ラウンジから退出',exact:true}).click();await p3.locator('#waitingJoinForm').waitFor();await p.getByRole('button',{name:'最新の様子を見る',exact:true}).click();await p.locator('[data-waiting-state="WAITING"]').waitFor();assert.equal(await p.locator('.waiting-people li').count(),0);
+ await stop();await start();await p.goto(base+'/#/waiting/'+a.id);await p.locator('.waiting-greeting.mine').waitFor();await p.locator('.lounge-avatar').nth(2).waitFor();assert.equal(await p.locator('.lounge-avatar').count(),3);
+ await p3.getByRole('button',{name:'ラウンジから退出',exact:true}).click();await p3.locator('#waitingJoinForm').waitFor();await p.getByRole('button',{name:'最新の様子を見る',exact:true}).click();await p.locator('[data-waiting-state="WAITING"]').waitFor();assert.equal(await p.locator('.lounge-avatar').count(),0);
  // 参加者ゼロでも主催者に質問でき、回答は活動ページに名前なしで公開される
  await p.goto(base+'/#/liveactivity/'+a.id);await p.locator('[data-question-form]').waitFor();
- assert((await p.locator('[data-flow] .flow-now').innerText()).includes('ラウンジで検討中'));assert.equal(await p.locator('.apply-kinds small').count(),3);
+ assert((await p.locator('[data-flow] .flow-now').innerText()).includes('ラウンジで検討中'));assert.equal(await p.locator('[data-live-apply]').count(),1);assert((await p.locator('.activity-summary').innerText()).includes('募集人数'));
  await p.locator('[data-question-template]').first().click();assert.equal(await p.locator('[data-question-form] textarea').inputValue(),'初めてでも参加できますか？');
  await p.locator('[data-question-form] button.btn-primary').click();await p.locator('.question-list.mine').waitFor();
  await operatorPage.goto(base+'/operator.html#/org');await operatorPage.locator('[data-question-answer]').waitFor();assert(!(await operatorPage.locator('[data-question-inbox]').innerText()).includes('まちの参加者A'));
  await operatorPage.locator('[data-question-answer] textarea').fill('はい、初めての方も多い活動です。');await operatorPage.getByRole('button',{name:'回答して公開する',exact:true}).click();await operatorPage.getByText('回答待ちの質問はありません。',{exact:true}).waitFor();
  const viewer=await open(outsider,'/#/liveactivity/'+a.id);await viewer.locator('.question-a').waitFor();assert((await viewer.locator('.question-list').innerText()).includes('はい、初めての方も多い活動です。'));
  // 申込みの前に流れが分かり、申込み後は「承認待ち」「参加確定」と次にすることが切り替わる
- await p.reload();await p.locator('[data-live-apply][data-kind=体験参加]').click();await p.locator('#liveApplyForm').waitFor();assert((await p.locator('.modal .apply-steps').innerText()).includes('まだ参加確定ではありません'));
+ await p.reload();await p.locator('[data-live-apply]').click();await p.locator('#liveApplyForm').waitFor();assert.equal(await p.locator('#liveApplyForm [name=kind]:checked').inputValue(),'体験参加');assert((await p.locator('.modal .apply-steps').innerText()).includes('まだ参加確定ではありません'));
  await p.locator('#liveApplyForm [name=year]').selectOption('大学1年生');await p.locator('#liveApplyForm button.btn-primary').click();await p.waitForURL('**/#/myactivity');
  await p.locator('.live-card .flow-next').first().waitFor();assert((await p.locator('#app').innerText()).includes('申込み済み（承認待ち）'));
  await p.goto(base+'/#/liveactivity/'+a.id);await p.locator('.flow-card .flow-now').waitFor();assert((await p.locator('.flow-card .flow-now').innerText()).includes('申込み済み（団体の確認待ち）'));

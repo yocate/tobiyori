@@ -58,7 +58,7 @@ async function request(route,{method='GET',data,cookie,id,origin=base}={}){
  const login=await request('login',{method:'POST',data:details});assert.equal(login.status,200);
  const loginCookie=login.cookie.split(';')[0];
  assert.equal((await request('state',{cookie:loginCookie,id})).data.state.profile.nickname,'保存テスト');
- for(const file of ['/','/operator.html','/vendor/leaflet/leaflet.js','/tobiyori-logo-source.png'])assert.equal((await fetch(base+file)).status,200);
+ for(const file of ['/','/operator.html','/vendor/leaflet/leaflet.js','/tobiyori-logo-source.png','/tobiyori-logo-transparent.png'])assert.equal((await fetch(base+file)).status,200);
  assert.equal((await fetch(base+'/tobiyori-server.cjs')).status,404);
  assert.equal((await fetch(base+'/.tobiyori-data/accounts.sqlite')).status,404);
  await stop();await start();

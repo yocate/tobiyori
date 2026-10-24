@@ -47,7 +47,7 @@ const shots=path.join(__dirname,'.audit-20261003/discovery-update');fs.mkdirSync
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.locator('#bottomTabs [data-nav=map]').count(),0);
  assert.equal(await page.locator('#bottomTabs [data-more]').count(),0);
- assert.deepEqual(await page.locator('#bottomTabs [data-nav]').evaluateAll(nodes=>nodes.map(n=>n.dataset.nav)),['home','list','regional','campus','company','mypage']);
+ assert.deepEqual(await page.locator('#bottomTabs [data-nav]').evaluateAll(nodes=>nodes.map(n=>n.dataset.nav)),['home','list','waiting','myactivity','mypage']);
  await expand();await page.locator('[name=day]').selectOption('木');await page.locator('[name=conditions][value=free]').check();await search();
  await page.locator('#bottomTabs [data-nav=list]').click();await page.locator('.discovery-group').first().waitFor();
  assert.equal(await page.locator('#dsGenre').count(),0);assert.equal(await page.locator('#discoverySearch select, #discoverySearch details, #discoverySearch input[type=checkbox]').count(),0);
@@ -62,7 +62,8 @@ const shots=path.join(__dirname,'.audit-20261003/discovery-update');fs.mkdirSync
  await page.screenshot({path:path.join(shots,'grouped-communities-desktop.png'),fullPage:true});
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(shots,'grouped-communities-mobile.png'),fullPage:true});
  await page.locator('.topbar-cta [data-more]').click();await page.getByRole('heading',{name:'その他のメニュー'}).waitFor();await page.locator('.modal-close').click();
- for(const route of ['regional','company','campus']){await page.locator('#bottomTabs [data-nav='+route+']').click();await page.waitForURL(u=>u.hash==='#/'+route);await page.locator('#bottomTabs [data-nav='+route+'][aria-current=page]').waitFor();assert.equal(await page.locator('#bottomTabs [aria-current=page]').getAttribute('data-nav'),route);}
+ // 地域・大学・企業は「さがす」の中の切り替えタブで選び、下部タブは「さがす」が点灯したまま
+ for(const route of ['regional','company','campus']){await page.locator('.discovery-tabs a[href="#/'+route+'"]').click();await page.waitForURL(u=>u.hash==='#/'+route);await page.locator('.discovery-tabs a[href="#/'+route+'"][aria-current=page]').waitFor();assert.equal(await page.locator('#bottomTabs [aria-current=page]').getAttribute('data-nav'),'list');}
  await page.locator('#dsGenre').selectOption('音楽・楽器');await search();await campusCount(4);await reset();
  await expand();await page.locator('[name=conditions][value=beginner]').check();await page.locator('[name=conditions][value=highSchool]').check();await search();await campusCount(1);await page.locator('[name=matchMode][value=any]').check();await search();await campusCount(3);
  await page.locator('#dsUniversity').selectOption('高崎商科大学');await search();await campusCount(0);await reset();

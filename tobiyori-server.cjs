@@ -20,7 +20,7 @@ const server = http.createServer(async (req,res) => {
     const pathname = new URL(req.url,`http://localhost:${PORT}`).pathname;
     if(!['GET','HEAD'].includes(req.method)) throw failure(405,'この操作には対応していません。');
     const name = decodeURIComponent(['/', '/operator.html'].includes(pathname) ? '/gunma-community-map.html' : pathname);
-    if(!/^\/(gunma-community-map\.html|tobiyori-logo-source\.png|tobiyori-lounge-cute-v2\.png|vendor\/leaflet\/(leaflet\.(js|css)|images\/[\w.-]+\.png))$/.test(name)) throw failure(404,'ページが見つかりません。');
+    if(!/^\/(gunma-community-map\.html|tobiyori-logo-(source|transparent)\.png|tobiyori-lounge-cute-v2\.png|vendor\/leaflet\/(leaflet\.(js|css)|images\/[\w.-]+\.png))$/.test(name)) throw failure(404,'ページが見つかりません。');
     const full = path.join(ROOT,name.slice(1));
     const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png'};
     const content=await fs.promises.readFile(full);

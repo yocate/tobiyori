@@ -11,7 +11,7 @@ fs.mkdirSync(path.join(out, 'vendor', 'leaflet'), { recursive: true });
 
 const html = fs.readFileSync(path.join(src, 'gunma-community-map.html'), 'utf8').replace(/\r\n?/g, '\n'); // browsers hash LF-normalized text
 fs.writeFileSync(path.join(out, 'index.html'), html);
-for (const f of ['tobiyori-logo-source.png', 'tobiyori-lounge-cute-v2.png', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css'])
+for (const f of ['tobiyori-logo-source.png', 'tobiyori-logo-transparent.png', 'tobiyori-lounge-cute-v2.png', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css'])
   fs.copyFileSync(path.join(src, f), path.join(out, f));
 const images = path.join(src, 'vendor', 'leaflet', 'images');
 if (fs.existsSync(images)) fs.cpSync(images, path.join(out, 'vendor', 'leaflet', 'images'), { recursive: true });

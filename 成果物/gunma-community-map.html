@@ -549,12 +549,81 @@ body{padding-bottom:76px}@media(max-width:859px){body:not(.operator-app){padding
 .lounge-online{margin:12px 0 0;font-weight:700;color:#286043}.lounge-history{margin-top:10px;padding:12px 16px;border:1px solid #e3ead8;border-radius:14px;background:#fbfdf6}.lounge-history ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}.lounge-history li{font-size:14px;line-height:1.6}.lounge-history small{margin-left:8px;color:#6b7c70}.lounge-preview{display:flex;gap:14px;align-items:center;margin:16px 0;padding:14px 16px;border:2px dashed #d7e5c6;border-radius:16px;background:#fffef8}.lounge-preview p{margin:4px 0 0;line-height:1.7}.lounge-preview-art{font-size:20px;white-space:nowrap;color:#9bbd7a}.waiting-trust{margin:10px 0 18px;padding:12px 16px;border:1px solid #d7e5c6;border-radius:14px;background:#f6faef}.waiting-trust ul{list-style:none;display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0;padding:0;font-size:14px;color:#285a3c}.waiting-trust a{font-size:14px;font-weight:700}
 .flow-card{margin:18px 0;padding:18px 20px;border:1px solid #d7e5c6;border-radius:18px;background:#fbfdf6}.flow-steps{list-style:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:0 0 14px;padding:0}.flow-steps li{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:12px;line-height:1.4;color:#6b7c70}.flow-steps b{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#eef2e8;border:2px solid #d5dfca;color:#6b7c70}.flow-steps li.done b{background:#c9eb70;border-color:#a7c94f;color:#23482f}.flow-steps li.current{color:#1b3828;font-weight:800}.flow-steps li.current b{background:#286043;border-color:#286043;color:white}.flow-steps small{display:block;font-weight:400}.flow-now{margin:0 0 6px}.flow-next{margin:8px 0;padding:10px 12px;border-radius:12px;background:#eef5e5;line-height:1.7}.flow-next b{display:block;font-size:13px;color:#286043}.apply-kinds{display:grid;gap:10px;margin:14px 0}.apply-kinds>div{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}.apply-kinds small{color:#4b5f52;line-height:1.6}.apply-steps{margin:14px 0;padding:12px 16px;border:1px dashed #c9d9b4;border-radius:14px;background:#fffef8}.apply-steps ol{margin:6px 0 0;padding-left:1.4em;line-height:1.8;font-size:14px}.waiting-purpose{margin:14px 0 18px;padding:18px 20px;border-radius:18px;background:#eef5e5;border:1px solid #d7e5c6}.waiting-purpose h3{margin:0 0 10px;font-size:18px;line-height:1.5}.waiting-purpose ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;counter-reset:purpose}.waiting-purpose li{display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:14px;background:white;counter-increment:purpose}.waiting-purpose li b::before{content:counter(purpose) ". "}.waiting-purpose li span{font-size:14px;line-height:1.7}.waiting-purpose-tags{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}.waiting-purpose-tags span{font-size:13px;padding:4px 10px;border-radius:999px;background:white;color:#286043;font-weight:700}.waiting-todo{text-align:left;margin:14px 0;padding:12px 16px;border-radius:14px;background:#fffef3;border:2px solid #e6dfa6}.waiting-todo ol{margin:6px 0 0;padding-left:1.4em;line-height:1.8}.waiting-phrase-groups{display:grid;gap:12px;margin:10px 0 16px}.waiting-phrase-group>b{display:block;font-size:13px;color:#286043;margin-bottom:6px}.activity-questions textarea,.question-inbox-item textarea{box-sizing:border-box;width:100%;padding:12px;font:inherit;border:1px solid var(--line-strong);border-radius:12px;margin-top:6px}.question-list{display:grid;gap:10px;margin:10px 0}.question-item{padding:12px 14px;border-radius:14px;background:#fbfdf6;border:1px solid #e3ead8}.question-q,.question-a{display:flex;gap:10px;margin:4px 0;line-height:1.7}.question-q b,.question-a b{flex:0 0 auto;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#286043;color:white;font-size:13px}.question-a b{background:#e9aa46}.question-templates{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}.question-templates-label{margin:12px 0 0;font-weight:700;font-size:14px}
 @media(max-width:650px){.waiting-purpose ol{grid-template-columns:1fr}.flow-steps{gap:2px}.flow-steps li{font-size:11px}.lounge-preview{flex-direction:column;align-items:flex-start}.lounge-floor{aspect-ratio:4/3}.lounge-prop{font-size:22px}.lounge-avatar .waiting-person{width:38px;height:38px;font-size:17px}}
+/* ===== 白基調: ページの背景は白にし、緑はボタン・バッジ・アクセントにだけ使う（ダークモードは従来どおり） ===== */
+:root{--bg:#FFFFFF;--surface-alt:#F6F8F3}
+body{background:var(--bg)}
+.tobiyori-logo{background:transparent}
+.topbar{background:#fff;border-bottom:1px solid var(--line)}
+#accountBar{background:#fff;border-bottom:1px solid var(--line)}
+.hero{background:#fff;border-bottom:0}
+.footer{background:#fff;border-top:1px solid var(--line)}
+.operator-app{background:#fff}
+/* 大きな面は白＋細い枠に。小さな強調だけ淡いグレーで区別する */
+.discovery-entry.adventure-entry,.serendipity-entry.serendipity-adventure,.live-buzz-summary,.info-box,.waiting-inline,.flow-card,.apply-steps,.waiting-trust,.waiting-purpose,.waiting-panel,.waiting-panel.waiting-party,.waiting-todo,.lounge-history,.waiting-next,.waiting-activity-card li,.waiting-ticket-top,.door-journey,.discovery-empty,.lounge-preview,.live-verification,.activity-group,.waiting-steps li,.waiting-invite{background:#fff;border:1px solid var(--line);box-shadow:none}
+.flow-next,.waiting-purpose li,.question-item{background:var(--surface-alt)}
+.waiting-adventure{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.waiting-adventure:before{border-color:var(--line);box-shadow:0 0 0 55px rgba(199,242,56,.08)}
+.waiting-adventure .waiting-kicker{background:var(--green-pale);border-color:var(--line-strong);color:var(--brand-forest)}
+.waiting-adventure h2,.waiting-adventure .waiting-catch{color:var(--brand-forest)}
+.waiting-adventure .waiting-catch em{color:#4d7f12}
+.waiting-adventure .waiting-hero-description{color:var(--ink-soft)}
+.waiting-adventure .waiting-hero-tags span{border-color:var(--line-strong);color:var(--brand-forest)}
+/* 活動ページ: 要点を最初に、申込みは1つのボタン、詳細は折りたたみ */
+.activity-badges{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.activity-summary{border:1px solid var(--line);border-radius:18px;padding:16px 18px;margin:0 0 18px;background:#fff}
+.activity-summary dl{display:grid;gap:10px;margin:0 0 14px}.activity-summary dl>div{display:grid;grid-template-columns:5em minmax(0,1fr);gap:8px;align-items:baseline}
+.activity-summary dt{font-size:13px;font-weight:700;color:var(--ink-soft)}.activity-summary dd{margin:0;font-weight:700;overflow-wrap:anywhere}.activity-summary dd small{display:block;font-weight:400;font-size:12px;color:var(--ink-soft)}
+.activity-targets{display:flex;flex-wrap:wrap;gap:6px}.activity-targets span{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--surface-alt);border:1px solid var(--line)}
+.link-button{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--green);text-decoration:underline;cursor:pointer}
+.apply-main{display:grid;gap:6px}.apply-main .btn{width:100%;max-width:440px;min-height:52px;font-size:16px}.apply-main small{color:var(--ink-soft);line-height:1.6}
+.activity-summary-sub{margin-top:10px}
+.flow-card.compact{padding:12px 14px;margin:12px 0 0}.flow-card.compact .flow-steps{margin-bottom:8px}.flow-card.compact .flow-steps b{width:24px;height:24px;font-size:12px}.flow-card.compact .flow-now{font-size:13px;line-height:1.6;margin:0}
+.activity-section-title{font-size:18px;margin:26px 0 10px}
+.activity-detail-group{border:1px solid var(--line);border-radius:14px;margin:0 0 10px;background:#fff}.activity-detail-group summary{cursor:pointer;padding:14px 16px;font-weight:800}.activity-detail-group dl{margin:0;padding:0 16px 14px;display:grid;gap:12px}.activity-detail-group dt{font-size:13px;font-weight:700;color:var(--ink-soft)}.activity-detail-group dd{margin:2px 0 0}
+.apply-kind-choice{border:1px solid var(--line);border-radius:14px;padding:10px 14px;margin:0 0 14px}.apply-kind-choice legend{font-weight:800;padding:0 4px}.apply-kind-choice label{display:flex;gap:10px;align-items:flex-start;padding:8px 0;cursor:pointer}.apply-kind-choice label span{display:grid}.apply-kind-choice small{color:var(--ink-soft)}
+.question-ask{margin-top:12px}.question-ask summary{cursor:pointer;font-weight:800;color:var(--green)}
+/* ホーム: ラウンジは小さなカード、スマホではマスコットを小さく */
+.waiting-home{margin-top:8px;margin-bottom:24px}
+.waiting-home-card{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px 24px;padding:20px 22px;border:1px solid var(--line);border-radius:20px;background:#fff}
+.waiting-home-card h2{margin:6px 0;font-size:22px;color:var(--brand-forest)}.waiting-home-card p{margin:0;line-height:1.8;color:var(--ink-soft);max-width:34em}
+.waiting-home-card .waiting-kicker{font-size:12px;font-weight:800;color:#4d7f12}
+@media(max-width:650px){.tobiyori-hero-art{max-width:200px;margin:8px auto 0}.tobiyori-hero-art .tobiyori-bubble{font-size:13px}.waiting-home-card .btn{width:100%}}
+.waiting-more-phrases{margin-top:4px}.waiting-more-phrases summary{cursor:pointer;font-weight:700;color:var(--green);padding:6px 0}.waiting-more-phrases[open] .waiting-phrase-group{margin-top:10px}
+/* スマホのホーム: 扉は横並びの小さな行、よりみち発見はイラストを省いて要点だけ */
+@media(max-width:650px){
+ .adventure-purpose .discovery-entries{gap:10px}
+ .adventure-purpose .adventure-entry{flex-direction:row;align-items:center;min-height:0}
+ .adventure-purpose .adventure-picture{flex:0 0 84px;width:84px;height:84px;overflow:hidden;border-radius:18px 0 0 18px}
+ .adventure-purpose .adventure-picture>*:not(.adventure-sticker){width:100%;height:100%;object-fit:cover}
+ .adventure-purpose .adventure-sticker,.adventure-purpose .adventure-entry-copy p,.adventure-purpose .adventure-caption{display:none}
+ .adventure-purpose .adventure-entry-copy{padding:12px 14px}.adventure-purpose .adventure-entry-copy h3{font-size:18px;margin:0}
+ .adventure-purpose .adventure-entry-cta{display:none}
+ .serendipity-entry.serendipity-adventure{grid-template-columns:1fr;padding:20px}
+ .serendipity-adventure .serendipity-entry-art{display:none}
+ .serendipity-adventure .serendipity-catch{font-size:20px}
+}
+/* ご意見: 本文に重ならない小さな丸アイコン */
+.feedback-fab{width:44px;height:44px;min-height:44px;padding:0;justify-content:center;border-width:1px;box-shadow:0 2px 8px rgba(7,83,51,.15)}.feedback-fab .icon{width:20px;height:20px}
+/* ナビ: 下部タブ5つ、上部はお知らせとその他だけ、アカウント行は保存状態の細い1行 */
+body:not(.operator-app) .bottom-tabs{grid-template-columns:repeat(5,minmax(0,1fr));background:#fff;border-top:1px solid var(--line)}
+.topbar-cta{gap:8px}
+.topbar-bell{position:relative;display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--line);border-radius:50%;background:#fff;color:var(--brand-forest);cursor:pointer}
+.topbar-bell .icon{width:22px;height:22px}
+.topbar-badge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:#d9480f;color:#fff;font-size:11px;font-weight:800;line-height:20px;text-align:center}
+body:not(.operator-app) #accountBar{padding:6px 16px;font-size:12px}
+body:not(.operator-app) #accountBar>div:first-child{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+body:not(.operator-app) .account-save-status{display:inline;margin:0}
+body:not(.operator-app) .account-save-status::before{content:'・'}
+body:not(.operator-app) #accountBar .account-bar-actions:empty{display:none}
+.more-menu{display:grid;gap:18px}.more-menu section{display:grid;gap:4px}.more-menu h4{margin:0 0 4px;font-size:13px;color:var(--ink-soft)}
+.more-item{display:block;width:100%;text-align:left;padding:12px 14px;border:0;border-bottom:1px solid var(--line);background:#fff;font:inherit;font-weight:700;color:var(--ink);cursor:pointer}
+.more-item:hover{background:var(--surface-alt)}.more-logout{color:var(--ink-soft);border-bottom:0;margin-top:6px}
 </style>
 
 <div class="topbar">
   <div class="topbar-inner">
     <button class="brand" data-nav="home" aria-label="トビヨリ ホームへ">
-      <span class="tobiyori-logo" role="img" aria-label="トビヨリ tobiyori"><img src="tobiyori-logo-source.png" alt="" draggable="false"></span>
+      <span class="tobiyori-logo" role="img" aria-label="トビヨリ tobiyori"><img src="tobiyori-logo-transparent.png" alt="" draggable="false"></span>
     </button>
     <nav class="desktop-nav" id="desktopNav" aria-label="メインメニュー"></nav>
     <div class="topbar-cta">
@@ -966,7 +1035,7 @@ async function accountAPI(url, method='GET', data) {
 function accountNotice() {
   const el=document.getElementById('accountBar'); if(!el)return;
   const text = !ACCOUNT_SERVER ? 'アカウント機能を使うには、起動したアプリを開いてください。' : !accountReady ? 'アカウントを確認しています…' : accountUser ? `${accountUser.nickname} さん` : OPERATOR_APP?'運営者用アカウントでログインしてください。':'ログインすると、自分のマイページを保存できます。';
-  el.innerHTML=`<div>${escapeHtml(text)}${accountUser&&!OPERATOR_APP?`<span class="account-save-status" role="status">${accountError?escapeHtml(accountError):(pendingAccountState||accountSaving)?'変更を保存中…':'保存済み'}</span>`:''}</div><div class="account-bar-actions">${!ACCOUNT_SERVER?'<a class="btn btn-primary btn-sm" href="http://localhost:4177/">ログインできるアプリを開く</a>':!accountReady?'':accountUser?`<button class="btn btn-secondary btn-sm" data-account-nav="notifications" aria-label="お知らせ・未読 ${liveUnreadCount()}件">お知らせ${liveUnreadCount()?' ('+liveUnreadCount()+')':''}</button><button class="btn btn-ghost btn-sm" id="accountLogout">ログアウト</button>${accountError?(accountConflict?'<button class="btn btn-secondary btn-sm" id="accountReload">最新の内容を読み込む</button><button class="btn btn-ghost btn-sm" id="accountOverwrite">この画面の内容で上書き保存</button>':'<button class="btn btn-ghost btn-sm" id="accountRetry">保存を再試行</button>'):''}`:OPERATOR_APP?'<button class="btn btn-ghost btn-sm" data-account-nav="login">運営者ログイン</button>':'<button class="btn btn-ghost btn-sm" data-account-nav="login">ログイン</button><button class="btn btn-primary btn-sm" data-account-nav="register">新規登録</button>'}</div>`;
+  el.innerHTML=`<div>${escapeHtml(text)}${accountUser&&!OPERATOR_APP?`<span class="account-save-status" role="status">${accountError?escapeHtml(accountError):(pendingAccountState||accountSaving)?'変更を保存中…':'保存済み'}</span>`:''}</div><div class="account-bar-actions">${!ACCOUNT_SERVER?'<a class="btn btn-primary btn-sm" href="http://localhost:4177/">ログインできるアプリを開く</a>':!accountReady?'':accountUser?`${OPERATOR_APP?'<button class="btn btn-ghost btn-sm" id="accountLogout">ログアウト</button>':''}${accountError?(accountConflict?'<button class="btn btn-secondary btn-sm" id="accountReload">最新の内容を読み込む</button><button class="btn btn-ghost btn-sm" id="accountOverwrite">この画面の内容で上書き保存</button>':'<button class="btn btn-ghost btn-sm" id="accountRetry">保存を再試行</button>'):''}`:OPERATOR_APP?'<button class="btn btn-ghost btn-sm" data-account-nav="login">運営者ログイン</button>':'<button class="btn btn-ghost btn-sm" data-account-nav="login">ログイン</button><button class="btn btn-primary btn-sm" data-account-nav="register">新規登録</button>'}</div>`;
   el.querySelectorAll('[data-account-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.accountNav));
   el.querySelector('#accountLogout')?.addEventListener('click',logoutAccount);
   el.querySelector('#accountRetry')?.addEventListener('click',()=>flushAccount().catch(()=>{}));
@@ -1142,15 +1211,26 @@ function flowState(aid,status,inLounge){
  if(inLounge)return {step:0,label:'ラウンジで検討中',note:'ラウンジへの入室は、申込みではありません。',next:'参加を決めたら、活動ページの申込みボタンから申し込みます。',href:'#/waiting/'+encodeURIComponent(aid),cta:'ラウンジを見る'};
  return {step:-1,label:'まだ申し込んでいません',note:'',next:'気になったら、ラウンジや質問で様子を確かめてから申し込めます。'};
 }
-function flowHTML(st){return `<section class="flow-card" aria-label="参加までの流れ"><ol class="flow-steps">${FLOW_STEPS.map((t,i)=>`<li class="${i<st.step?'done':i===st.step?'current':''}"${i===st.step?' aria-current="step"':''}><b>${i<st.step?'✓':i+1}</b><span>${t}${i===0?'<small>（任意）</small>':''}</span></li>`).join('')}</ol><p class="flow-now">いまの状態：<strong>${escapeHtml(st.label)}</strong></p>${st.note?`<p>${escapeHtml(st.note)}</p>`:''}<p class="flow-next"><b>次にすること</b>${escapeHtml(st.next)}</p>${st.href?`<a class="btn btn-secondary btn-sm" href="${st.href}">${escapeHtml(st.cta)}</a>`:''}</section>`;}
+// 活動ページ上では、申込みボタンはすぐ上にある
+const activityFlowState=(aid,inLounge)=>{const st=flowState(aid,null,inLounge);return {...st,next:st.step===0?'参加を決めたら、上の「参加を申し込む」から申し込めます。':st.next};};
+function flowHTML(st,compact=false){if(compact)return `<section class="flow-card compact" aria-label="参加までの流れ"><ol class="flow-steps">${FLOW_STEPS.map((t,i)=>`<li class="${i<st.step?'done':i===st.step?'current':''}"${i===st.step?' aria-current="step"':''}><b>${i<st.step?'✓':i+1}</b><span>${t}</span></li>`).join('')}</ol><p class="flow-now"><strong>${escapeHtml(st.label)}</strong>　${escapeHtml(st.next)}</p></section>`;return `<section class="flow-card" aria-label="参加までの流れ"><ol class="flow-steps">${FLOW_STEPS.map((t,i)=>`<li class="${i<st.step?'done':i===st.step?'current':''}"${i===st.step?' aria-current="step"':''}><b>${i<st.step?'✓':i+1}</b><span>${t}${i===0?'<small>（任意）</small>':''}</span></li>`).join('')}</ol><p class="flow-now">いまの状態：<strong>${escapeHtml(st.label)}</strong></p>${st.note?`<p>${escapeHtml(st.note)}</p>`:''}<p class="flow-next"><b>次にすること</b>${escapeHtml(st.next)}</p>${st.href?`<a class="btn btn-secondary btn-sm" href="${st.href}">${escapeHtml(st.cta)}</a>`:''}</section>`;}
 const APPLY_KINDS={見学:'活動の様子を見に行きます。作業には加わりません。',体験参加:'1回だけ、実際に参加してみます。',継続参加の相談:'続けて参加したい方向けです。まず団体に相談します。'};
 function applyStepsHTML(){return '<div class="apply-steps"><b>申し込むと、こうなります</b><ol><li>団体に、ニックネームと入力した内容が届きます（<strong>まだ参加確定ではありません</strong>）。</li><li>団体が確認し、承認されるとアプリ内にお知らせが届きます。</li><li>承認後、集合場所と緊急連絡先が「申込み・参加記録」に表示されます。</li><li>予定が変わったら、申込みはいつでも取り消せます。</li></ol></div>';}
+const ACTIVITY_DETAIL_GROUPS=[['活動の内容',{purpose:'活動の目的',tasks:'具体的な内容',staff:'責任者',requirements:'参加条件'}],['費用・持ち物・アクセス',{fees:'費用の補足',remuneration:'報酬・謝礼',transportFee:'交通費の補助',belongings:'持ち物',transport:'交通手段'}],['安全・ルール',{risk:'危険性と対策',insurance:'保険',photoPolicy:'写真撮影',prohibited:'禁止事項'}]];
+const filled=v=>v===0||(v!==undefined&&v!==null&&String(v).trim()!=='');
+function activityFee(a){return a.feeAmount===0||a.feeAmount==='0'?'無料':filled(a.feeAmount)?Number(a.feeAmount).toLocaleString()+'円':filled(a.fees)?a.fees:'記載なし';}
+function activitySummaryHTML(a,c){
+ const targets=[a.beginner?'初めての方歓迎':'',HIGH_SCHOOL_LABELS[a.highSchoolParticipation]||HIGH_SCHOOL_LABELS.unknown,a.targetYears?.length?'大学生：'+a.targetYears.join('・'):''].filter(Boolean);
+ const rows=[['日時',`${liveDate(a.startsAt)} 〜 ${liveDate(a.endsAt)}`],['場所',`${a.activityCity||c?.city||'未定'}<small>正確な集合場所は参加確定後に表示します</small>`,true],['参加費',activityFee(a)],['募集人数',a.capacity+'人']];
+ return `<section class="activity-summary" aria-label="活動の要点"><dl>${rows.map(([k,v,html])=>`<div><dt>${k}</dt><dd>${html?v.replace(/^[^<]*/,m=>escapeHtml(m)):escapeHtml(v)}</dd></div>`).join('')}<div><dt>対象</dt><dd class="activity-targets">${targets.map(t=>`<span>${escapeHtml(t)}</span>`).join('')}</dd></div><div><dt>主催</dt><dd><button class="link-button" data-nav="livecommunity" data-param="${a.communityId}">${escapeHtml(c?.name||'登録団体')}</button></dd></div></dl>${liveApplyControls(a)}${c?`<div class="activity-summary-sub">${liveSaveButton(c)}</div>`:''}</section>`;
+}
+function activityDetailsHTML(a){return ACTIVITY_DETAIL_GROUPS.map(([title,fields],i)=>{const rows=Object.entries(fields).filter(([k])=>filled(a[k]));return rows.length?`<details class="activity-detail-group" ${i===0?'open':''}><summary>${title}</summary><dl>${rows.map(([k,label])=>`<div><dt>${label}</dt><dd class="live-copy">${escapeHtml(String(a[k]))}</dd></div>`).join('')}</dl></details>`:'';}).join('');}
 function liveApplyControls(a){
  const own=liveOwnApplications().find(p=>p.activity_id===a.id);
  if(own&&own.status!=='CANCELLED')return flowHTML(flowState(a.id,own.status,false));
  if(LIVE.dashboard?.activities.some(x=>x.id===a.id))return '<button class="btn btn-secondary" data-nav="org">この募集を管理する</button>';
  if(isRecruitment(a))return a.status==='PUBLISHED'&&!a.changePending&&(a.deadline||a.endsAt)>new Date().toISOString()&&a.applicationURL?`<div class="card live-card"><p>採用への応募は企業の公式ページで行います。</p><a class="btn btn-primary" href="${escapeHtml(a.applicationURL)}" target="_blank" rel="noopener noreferrer">公式ページで応募する ↗</a></div>`:'<p>現在は応募受付を行っていません。</p>';
- return a.status==='PUBLISHED'&&(a.deadline||a.startsAt||'9999')>new Date().toISOString()?`${a.participationScope==='members'?'<p class="hint">この活動は団体の所属メンバーのみが対象です。申込み時に所属を確認し、担当者が承認します。</p>':''}<div data-flow="${escapeHtml(a.id)}">${flowHTML(flowState(a.id,null,waitingJoined.includes(a.id)))}</div><div class="apply-kinds">${Object.entries(APPLY_KINDS).map(([kind,desc])=>`<div><button class="btn btn-primary" data-live-apply="${a.id}" data-kind="${kind}">${kind}を申し込む</button><small>${desc}</small></div>`).join('')}</div>${applyStepsHTML()}`:'';
+ return a.status==='PUBLISHED'&&(a.deadline||a.startsAt||'9999')>new Date().toISOString()?`${a.participationScope==='members'?'<p class="hint">この活動は団体の所属メンバーのみが対象です。申込み時に所属を確認し、担当者が承認します。</p>':''}<div class="apply-main"><button class="btn btn-primary" data-live-apply="${a.id}">参加を申し込む</button><small>見学・体験参加・継続参加の相談から選べます。申込みの時点では、まだ参加確定ではありません。</small></div><div data-flow="${escapeHtml(a.id)}" data-compact>${flowHTML(activityFlowState(a.id,waitingJoined.includes(a.id)),true)}</div>`:'';
 }
 function liveRecommendationsHTML(){
  const p=DB.profile,labels=interestChoices().filter(([key])=>(p.interests||[]).includes(key)).map(([,v])=>v.label);
@@ -1193,7 +1273,7 @@ function clearWaitingRooms(){waitingRoomRequest++;waitingJoined=[];loungeCache={
 function waitingArt(){return `<img class="waiting-lounge-illustration" src="tobiyori-lounge-cute-v2.png" width="1536" height="1024" alt="開いた扉のそばで、トビヨリのキャラクターと丸い仲間がソファで待ち合わせ" decoding="async" draggable="false">`;}
 function waitingWelcome(home=false){return `<div class="waiting-invite waiting-adventure"><div class="waiting-hero-copy"><span class="waiting-kicker">参加を決める前の、待ち合わせ。</span>${home?'<h2>よりみちラウンジ</h2>':''}<p class="waiting-catch">ひとりの「気になる」が、<br><em>みんなのきっかけに。</em></p><p class="waiting-hero-description">同じ活動が気になる仲間と、まずはあいさつ。<br>「行ってみようかな」は、そのあとで。</p><div class="waiting-hero-tags"><span>申込み前でもOK</span><span>あいさつから</span><span>いつでも退出</span></div>${home?'<a class="btn btn-primary waiting-hero-button" href="#/waiting">ラウンジをのぞいてみる <span aria-hidden="true">↗</span></a>':'<button class="btn btn-primary waiting-hero-button" data-waiting-browse>気になる活動を見つける <span aria-hidden="true">↓</span></button>'}</div><div class="waiting-art">${waitingArt()}<span class="waiting-art-note">その一歩、仲間となら。</span></div></div>`;}
 
-function waitingHomeHTML(){return `<section class="container waiting-home">${waitingWelcome(true)}</section>`;}
+function waitingHomeHTML(){return `<section class="container waiting-home"><div class="waiting-home-card"><div><span class="waiting-kicker">申し込む前の、顔合わせ</span><h2>よりみちラウンジ</h2><p>同じ活動が気になる人と、選ぶだけのあいさつで顔合わせ。参加はそのあとで決められます。</p></div><a class="btn btn-primary" href="#/waiting">ラウンジをのぞいてみる</a></div></section>`;}
 function waitingAvailable(a){const now=new Date().toISOString();return !isCareerListing(a)&&a.participationScope!=='members'&&a.status==='PUBLISHED'&&!a.changePending&&a.startsAt>now&&(a.deadline||a.startsAt)>now;}
 function waitingCardEntry(a){return waitingAvailable(a)?`<a class="btn btn-secondary btn-sm" data-waiting-card="${escapeHtml(a.id)}" href="#/waiting/${encodeURIComponent(a.id)}">よりみちラウンジへ</a>`:'';}
 function waitingEntry(a){if(!waitingAvailable(a))return '';return `<section class="waiting-inline"><div><span class="waiting-kicker">まだ、申し込まなくても大丈夫</span><h3>よりみちラウンジ</h3><p>同じ活動を気にしている人と、自動で3〜4人の仲間になります。</p></div><a class="btn btn-secondary" href="#/waiting/${encodeURIComponent(a.id)}">この活動のラウンジへ</a></section>`;}
@@ -1208,7 +1288,7 @@ function waitingRules(){return `<details class="waiting-rules"><summary>ラウ�
 function viewWaitingPage(){
  if(!['waiting','waitingManage'].includes(current.view))return null;
  if(current.view==='waitingManage')return liveShell('ラウンジの様子','<p>自分が担当する活動のラウンジを確認できます。運営者は全活動を確認できます。</p><div data-waiting-operator><p role="status">ラウンジを読み込んでいます…</p></div>');
- if(current.param){const a=LIVE.catalog.activities.find(a=>a.id===current.param);return liveShell('よりみちラウンジ',`<a class="btn btn-ghost btn-sm" href="#/waiting">← ラウンジの一覧</a>${a?`<h2>${escapeHtml(a.title)}</h2><p>${escapeHtml(liveDate(a.startsAt))}</p>${waitingTrustHTML(a)}`:''}${waitingPurposeHTML()}${accountUser?`<div data-waiting-room="${escapeHtml(current.param)}"><p role="status">ラウンジを読み込んでいます…</p></div>`:'<div class="card live-card"><h2>参加を決める前に、仲間を知ろう。</h2><p>ログインすると、同じ活動が気になっている人とのラウンジに入れます。</p><a class="btn btn-primary" href="#/login">ログインして使う</a></div>'}${waitingRules()}`);}
+ if(current.param){const a=LIVE.catalog.activities.find(a=>a.id===current.param);return liveShell('よりみちラウンジ',`<a class="btn btn-ghost btn-sm" href="#/waiting">← ラウンジの一覧</a>${a?`<h2>${escapeHtml(a.title)}</h2><p>${escapeHtml(liveDate(a.startsAt))}</p>${waitingTrustHTML(a)}`:''}${accountUser?'':waitingPurposeHTML()}${accountUser?`<div data-waiting-room="${escapeHtml(current.param)}"><p role="status">ラウンジを読み込んでいます…</p></div>`:'<div class="card live-card"><h2>参加を決める前に、仲間を知ろう。</h2><p>ログインすると、同じ活動が気になっている人とのラウンジに入れます。</p><a class="btn btn-primary" href="#/login">ログインして使う</a></div>'}${waitingRules()}`);}
  const rows=waitingActivities();
  return liveShell('よりみちラウンジ',`${waitingWelcome()}<ol class="waiting-steps"><li><b>1</b><span>気になる活動の<br>ラウンジに入る</span></li><li><b>2</b><span>3〜4人の仲間と<br>自動でつながる</span></li><li><b>3</b><span>あいさつしてから<br>参加するか考える</span></li></ol><div class="section-head" id="waiting-activities"><h2>気になる活動のラウンジ</h2><button class="btn btn-ghost btn-sm" data-live-refresh>最新の活動を見る</button></div>${!LIVE.loaded?'<p role="status">活動を読み込んでいます…</p>':LIVE.error?'<p role="alert">活動を読み込めませんでした。再度お試しください。</p>':`<div class="act-grid">${rows.map(a=>{const c=LIVE.catalog.communities.find(c=>c.id===a.communityId);return `<article class="card live-card waiting-activity-card"><div class="waiting-ticket-top"><span aria-hidden="true">✦</span><b>次のよりみち、ここかも。</b></div><span class="badge badge-neutral">${escapeHtml(c?.city||'')}</span><span class="badge badge-neutral" data-waiting-joined="${escapeHtml(a.id)}" ${waitingJoined.includes(a.id)?'':'hidden'}>ラウンジに入室中</span><h3>${escapeHtml(a.title)}</h3><p>${escapeHtml(c?.name||'')}</p><p>${escapeHtml(liveDate(a.startsAt))}</p><a class="btn btn-primary" href="#/waiting/${encodeURIComponent(a.id)}">ラウンジを見る</a><a class="btn btn-ghost btn-sm" href="#/liveactivity/${encodeURIComponent(a.id)}">活動の内容を見る</a></article>`;}).join('')||'<div class="card live-card waiting-empty"><span class="waiting-empty-mark" aria-hidden="true">✦</span><h3>次のよりみち、ただいま準備中。</h3><p>確認済み団体の、参加を受け付けている活動がここに並びます。</p><a class="btn btn-secondary" href="#/list">コミュニティを探す</a></div>'}</div>`}${waitingRules()}`);
 }
@@ -1216,12 +1296,12 @@ function waitingRoomHTML(r){
  const a=LIVE.catalog.activities.find(a=>a.id===r.activityId),sent=new Set(r.greetings.filter(m=>m.isMe).map(m=>m.phrase));
  const controls=`<div class="waiting-controls"><button class="btn btn-ghost btn-sm" data-waiting-refresh>最新の様子を見る</button>${r.joined?'<button class="btn btn-ghost btn-sm" data-waiting-leave>ラウンジから退出</button>':''}<button class="btn btn-ghost btn-sm" data-live-report="${escapeHtml(r.communityId)}" data-report-activity="${escapeHtml(r.activityId)}">運営に相談・通報</button></div>`;
  let body='';
- if(r.state==='NOT_JOINED')body=r.canJoin?`<div class="waiting-panel"><h3>この活動が、ちょっと気になる。</h3><p>同じ気持ちの人がそろったら、自動でグループになります。グループになると「よりみちひろば」で、話さなくてもスタンプであいさつできます。</p>${waitingTodoHTML(['ラウンジで使う呼び名を決める（本名でなくて大丈夫）','年齢区分を選んで、同意にチェックする','「気になる仲間を待つ」を押す'])}<form id="waitingJoinForm"><label>ラウンジで使う呼び名<input name="name" maxlength="20" required value="${escapeHtml((DB.profile.nickname||'').slice(0,20))}" placeholder="ニックネーム"></label><p class="hint">本名・連絡先は書かないでください。</p><label>年齢区分<select name="ageBand" required><option value="">選んでください</option><option value="adult">18歳以上</option><option value="minor">18歳未満</option></select></label><label class="account-consent"><input name="consent" type="checkbox" required><span>同じ活動のグループに自動で入り、呼び名をグループ・担当者・運営に表示することに同意します。</span></label><p class="hint">ラウンジに入っても、活動への申込みにはなりません。</p><p class="live-form-error" role="alert"></p><button class="btn btn-primary" type="submit">気になる仲間を待つ</button></form></div>`:'<div class="waiting-panel"><p>このラウンジへの新しい入室はできません。担当者・運営者は運営画面から様子を確認できます。</p></div>';
+ if(r.state==='NOT_JOINED')body=r.canJoin?`${waitingPurposeHTML()}<div class="waiting-panel"><h3>この活動が、ちょっと気になる。</h3><p>同じ気持ちの人がそろったら、自動でグループになります。グループになると「よりみちひろば」で、話さなくてもスタンプであいさつできます。</p>${waitingTodoHTML(['ラウンジで使う呼び名を決める（本名でなくて大丈夫）','年齢区分を選んで、同意にチェックする','「気になる仲間を待つ」を押す'])}<form id="waitingJoinForm"><label>ラウンジで使う呼び名<input name="name" maxlength="20" required value="${escapeHtml((DB.profile.nickname||'').slice(0,20))}" placeholder="ニックネーム"></label><p class="hint">本名・連絡先は書かないでください。</p><label>年齢区分<select name="ageBand" required><option value="">選んでください</option><option value="adult">18歳以上</option><option value="minor">18歳未満</option></select></label><label class="account-consent"><input name="consent" type="checkbox" required><span>同じ活動のグループに自動で入り、呼び名をグループ・担当者・運営に表示することに同意します。</span></label><p class="hint">ラウンジに入っても、活動への申込みにはなりません。</p><p class="live-form-error" role="alert"></p><button class="btn btn-primary" type="submit">気になる仲間を待つ</button></form></div>`:'<div class="waiting-panel"><p>このラウンジへの新しい入室はできません。担当者・運営者は運営画面から様子を確認できます。</p></div>';
  if(r.state==='WAITING')body=`<div class="waiting-panel waiting-pending"><span class="waiting-kicker">ラウンジへようこそ</span><h3>ここで、ちょっとひと休み。</h3><p>同じ「気になる」の仲間を待っています。</p>${waitingTodoHTML(['このまま待つだけで大丈夫です。画面を閉じても、仲間がそろうとお知らせが届きます。','待っている間に、活動ページで主催者に質問することもできます。'])}<p>今の区分で仲間待ち <strong>${r.waiting}人</strong></p><div class="waiting-seat-row" aria-hidden="true">${[0,1,2].map(i=>`<span class="waiting-seat ${i<r.waiting?'occupied':''}">${i<r.waiting?'●':'＋'}</span>`).join('')}</div><p>3人そろうと自動でグループになり、アプリ内でお知らせします。<br>この画面を離れていても大丈夫です。</p><div class="lounge-preview"><span class="lounge-preview-art" aria-hidden="true">🪴 ● ● ● 👋</span><div><b>仲間がそろうと、よりみちひろばへ</b><p>アイコンを動かしたり、スタンプを送ったり。話さなくても、同じ場所にいるだけで大丈夫です。</p></div></div><p class="hint">集まるまでの時間は決まっていません。参加するかは、あとで決められます。</p></div>`;
  if(r.state==='ON_HOLD')body='<div class="waiting-panel"><h3>活動の変更内容を確認しています</h3><p>確認が終わるまで、仲間づくりとあいさつを一時停止しています。</p></div>';
- if(r.state==='MATCHED')body=`<div class="waiting-panel waiting-party"><div class="waiting-party-sparks" aria-hidden="true">✦　✧　✦</div><span class="waiting-kicker">同じ活動が気になる ${r.peers.length}人</span><h3>「気になる仲間」が、見つかりました。</h3><p>まずは、ひとこと。参加はまだ決めなくて大丈夫です。</p>${waitingTodoHTML(['下の「気軽にあいさつ」から、ひとことを選んで送る（迷ったら「はじめまして」）','よりみちひろばで、アイコンを動かしたりスタンプを送ったりする','行ってみたくなったら、活動ページから申し込む'])}<ul class="waiting-people">${r.peers.map((p,i)=>`<li><span class="waiting-person tone-${i}" aria-hidden="true">${escapeHtml(p.name.slice(0,1))}</span><b>${escapeHtml(p.name)}</b><small>${p.isMe?'あなた':'検討中の仲間'}</small></li>`).join('')}</ul>${loungeSpaceHTML(r.activityId)}<h4>気軽にあいさつ</h4><p class="hint">選ぶだけで送れます。それぞれ1回ずつ送れて、送ったものには ✓ が付きます。</p><div class="waiting-phrase-groups">${(r.phraseGroups||[{label:'ひとこと',keys:Object.keys(r.phrases)}]).map(g=>`<div class="waiting-phrase-group"><b>${escapeHtml(g.label)}</b><div class="waiting-phrases">${g.keys.filter(key=>r.phrases[key]).map(key=>`<button class="btn btn-secondary btn-sm" data-waiting-greet="${escapeHtml(key)}" ${sent.has(key)?'disabled':''}>${escapeHtml(r.phrases[key])}${sent.has(key)?' ✓':''}</button>`).join('')}</div></div>`).join('')}</div><div class="waiting-greetings" aria-live="polite">${r.greetings.map(m=>`<article class="waiting-greeting ${m.isMe?'mine':''}"><b>${escapeHtml(m.name)}${m.isMe?'（あなた）':''}</b><p>${escapeHtml(m.text)}</p></article>`).join('')||'<p class="hint">まだあいさつはありません。用意されたひとことから送れます。</p>'}</div></div>`;
+ if(r.state==='MATCHED')body=`<div class="waiting-panel waiting-party"><div class="waiting-party-sparks" aria-hidden="true">✦　✧　✦</div><span class="waiting-kicker">同じ活動が気になる ${r.peers.length}人</span><h3>「気になる仲間」が、見つかりました。</h3><p>まずは、ひとこと。参加はまだ決めなくて大丈夫です。</p>${waitingTodoHTML(['下の「気軽にあいさつ」から、ひとことを選んで送る（迷ったら「はじめまして」）','よりみちひろばで、アイコンを動かしたりスタンプを送ったりする','行ってみたくなったら、活動ページから申し込む'])}${loungeSpaceHTML(r.activityId)}<h4>気軽にあいさつ</h4><p class="hint">選ぶだけで送れます（それぞれ1回ずつ）。</p><div class="waiting-phrase-groups">${(r.phraseGroups||[{label:'ひとこと',keys:Object.keys(r.phrases)}]).map((g,gi)=>`${gi===1?'<details class="waiting-more-phrases"><summary>ほかのひとことを見る（気持ち・質問・返事）</summary>':''}<div class="waiting-phrase-group"><b>${escapeHtml(g.label)}</b><div class="waiting-phrases">${g.keys.filter(key=>r.phrases[key]).map(key=>`<button class="btn btn-secondary btn-sm" data-waiting-greet="${escapeHtml(key)}" ${sent.has(key)?'disabled':''}>${escapeHtml(r.phrases[key])}${sent.has(key)?' ✓':''}</button>`).join('')}</div></div>`).join('')}${(r.phraseGroups||[]).length>1?'</details>':''}</div><div class="waiting-greetings" aria-live="polite">${r.greetings.map(m=>`<article class="waiting-greeting ${m.isMe?'mine':''}"><b>${escapeHtml(m.name)}${m.isMe?'（あなた）':''}</b><p>${escapeHtml(m.text)}</p></article>`).join('')||'<p class="hint">まだあいさつはありません。用意されたひとことから送れます。</p>'}</div></div>`;
  const status=r.applicationStatus&&r.applicationStatus!=='CANCELLED'?r.applicationStatus:null;
- return `<div data-waiting-state="${r.state}">${body}${r.joined||status?flowHTML({...flowState(r.activityId,status,r.joined),...(status?{}:{href:''})}):''}${r.joined?`<div class="waiting-next"><div><h3>行ってみたいと思ったら</h3><p>活動の内容や条件を確かめて、自分のタイミングで申し込めます。</p></div><a class="btn btn-primary" href="#/liveactivity/${encodeURIComponent(r.activityId)}">${r.applicationStatus&&r.applicationStatus!=='CANCELLED'?'活動・申込み状況を見る':'活動を確かめて、参加を考える'}</a></div>`:''}${controls}${a?'':'<p class="hint">活動の公開状況を確認してください。</p>'}</div>`;
+ return `<div data-waiting-state="${r.state}">${body}${r.joined||status?flowHTML({...flowState(r.activityId,status,r.joined),...(status?{}:{href:'#/liveactivity/'+encodeURIComponent(r.activityId),cta:'活動を確かめて、参加を考える'})}):''}${controls}${a?'':'<p class="hint">活動の公開状況を確認してください。</p>'}</div>`;
 }
 async function loadWaitingRoom(feed){
  const aid=feed.dataset.waitingRoom,version=++waitingRoomRequest,uid=accountUser?.id,epoch=accountEpoch;
@@ -1237,7 +1317,7 @@ function bindWaitingRoomActions(feed,aid){
 // よりみちひろば: マッチしたグループだけの2D空間。動きと用意されたスタンプだけを共有し、自由入力はない。
 const loungeSeen=new Set();
 const LOUNGE_STAMP_LABELS={wave:'手をふる',smile:'にっこり',clap:'拍手',thanks:'ありがとう',spark:'楽しみ'};
-function loungeSpaceHTML(aid){const prop=(icon,x,y)=>`<span class="lounge-prop" style="left:${x}%;top:${y}%" aria-hidden="true">${icon}</span>`;return `<section class="lounge-space" data-lounge-space="${escapeHtml(aid)}" aria-labelledby="loungeHeading"><div class="lounge-head"><h4 id="loungeHeading">よりみちひろば</h4><p class="hint">床をタップすると、自分のアイコンが動きます（矢印キーでも移動できます）。スタンプで気持ちを伝えてみましょう。</p></div><div class="lounge-floor" tabindex="0" role="group" aria-label="ひろばの床。タップか矢印キーで自分のアイコンを移動">${'<span class="lounge-rug" aria-hidden="true"></span>'+prop('🪴',7,24)+prop('🛋️',50,20)+prop('📚',92,24)+prop('☕',50,60)+prop('🪴',93,86)}<div data-lounge-people></div></div><div class="lounge-stamps" data-lounge-stamps></div><p class="lounge-online" data-lounge-online></p><div class="lounge-history"><b>最近のスタンプ</b><ul data-lounge-history><li class="hint">まだスタンプはありません。最初のひとつを送ってみませんか。</li></ul></div><p class="visually-hidden" aria-live="polite" data-lounge-live></p></section>`;}
+function loungeSpaceHTML(aid){const prop=(icon,x,y)=>`<span class="lounge-prop" style="left:${x}%;top:${y}%" aria-hidden="true">${icon}</span>`;return `<section class="lounge-space" data-lounge-space="${escapeHtml(aid)}" aria-labelledby="loungeHeading"><div class="lounge-head"><h4 id="loungeHeading">よりみちひろば</h4><p class="hint">床をタップすると、自分のアイコンが動きます（矢印キーでも動かせます）。</p></div><div class="lounge-floor" tabindex="0" role="group" aria-label="ひろばの床。タップか矢印キーで自分のアイコンを移動">${'<span class="lounge-rug" aria-hidden="true"></span>'+prop('🪴',7,24)+prop('🛋️',50,20)+prop('📚',92,24)+prop('☕',50,60)+prop('🪴',93,86)}<div data-lounge-people></div></div><div class="lounge-stamps" data-lounge-stamps></div><p class="lounge-online" data-lounge-online></p><div class="lounge-history"><b>最近のスタンプ</b><ul data-lounge-history><li class="hint">まだスタンプはありません。最初のひとつを送ってみませんか。</li></ul></div><p class="visually-hidden" aria-live="polite" data-lounge-live></p></section>`;}
 function loungeAgo(sec){return sec<60?'たった今':sec<3600?Math.floor(sec/60)+'分前':Math.floor(sec/3600)+'時間前';}
 function renderLounge(el,data,keepMe=false){
  loungeCache[el.dataset.loungeSpace]=data;
@@ -1317,7 +1397,8 @@ function viewLivePage(){
    const a=liveActivityById(current.param);if(!a)return liveShell('活動の詳細','<p>現在、この募集は公開されていません。申込み済みの方は「申込み・参加記録」を確認してください。</p>');
    const c=liveOrgById(a.communityId);
    const fields=isRecruitment(a)?{purpose:'募集の目的',tasks:'仕事内容',staff:'採用の窓口',requirements:'応募条件',fees:'応募にかかる費用',remuneration:'給与・賃金'}:{feeAmount:'参加費の金額（円）',activityCity:'会場の市町村',fees:'費用の補足',remuneration:'報酬・謝礼',transportFee:'交通費の補助',purpose:'活動の目的',tasks:'具体的な内容',staff:'責任者',requirements:'参加条件',belongings:'持ち物',risk:'危険性と対策',insurance:'保険',photoPolicy:'写真撮影',transport:'交通手段',prohibited:'禁止事項'};
-   return liveShell(escapeHtml(a.title),`${liveBadge(a.status)} ${companyKindBadge(a)} ${activityEntryBadge(a)}${a.changePending?'<span class="badge badge-warn">変更確認中・受付保留</span>':''}<p>${isRecruitment(a)?'募集期間：':''}${escapeHtml(liveDate(a.startsAt))} 〜 ${escapeHtml(liveDate(a.endsAt))}</p><p>${escapeHtml(c?.name||'登録団体')} ／ ${escapeHtml(c?.city||'')} ／ 募集 ${a.capacity}人</p><button class="btn btn-ghost btn-sm" data-nav="livecommunity" data-param="${a.communityId}">団体の紹介を見る</button>${c?liveSaveButton(c):''}${companyListingFacts(a)}<div class="live-details">${Object.entries(fields).map(([k,label])=>`<section class="card live-card"><h3>${label}</h3><p class="live-copy">${escapeHtml(a[k]===0?'0':a[k]||'未入力')}</p></section>`).join('')}</div>${isRecruitment(a)?'':'<p class="hint">正確な集合場所と緊急連絡先は、参加承認後に申込み画面へ表示します。</p>'}<p><b>${HIGH_SCHOOL_LABELS[a.highSchoolParticipation]||HIGH_SCHOOL_LABELS.unknown}</b></p><p>大学生の対象学年：${escapeHtml(a.targetYears?.length?a.targetYears.join("・"):"学年不問")}</p>${waitingEntry(a)}${liveApplyControls(a)}${isRecruitment(a)?'':`<section class="card live-card activity-questions" data-questions="${escapeHtml(a.id)}"><h3>主催者への質問</h3><p role="status">質問を読み込んでいます…</p></section>`}${liveSupportActions(c,a.id)}${isRecruitment(a)?'':liveReviewsSection(a.id)}`);
+   if(!isRecruitment(a))return liveShell(escapeHtml(a.title),`<div class="activity-badges">${liveBadge(a.status)} ${activityEntryBadge(a)}${a.changePending?'<span class="badge badge-warn">変更確認中・受付保留</span>':''}</div>${activitySummaryHTML(a,c)}${waitingEntry(a)}<h2 class="activity-section-title">活動の詳しい内容</h2>${activityDetailsHTML(a)}<section class="card live-card activity-questions" data-questions="${escapeHtml(a.id)}"><h3>主催者への質問</h3><p role="status">質問を読み込んでいます…</p></section>${liveSupportActions(c,a.id)}${liveReviewsSection(a.id)}`);
+   return liveShell(escapeHtml(a.title),`${liveBadge(a.status)} ${companyKindBadge(a)} ${activityEntryBadge(a)}${a.changePending?'<span class="badge badge-warn">変更確認中・受付保留</span>':''}<p>${isRecruitment(a)?'募集期間：':''}${escapeHtml(liveDate(a.startsAt))} 〜 ${escapeHtml(liveDate(a.endsAt))}</p><p>${escapeHtml(c?.name||'登録団体')} ／ ${escapeHtml(c?.city||'')} ／ 募集 ${a.capacity}人</p><button class="btn btn-ghost btn-sm" data-nav="livecommunity" data-param="${a.communityId}">団体の紹介を見る</button>${c?liveSaveButton(c):''}${companyListingFacts(a)}<div class="live-details">${Object.entries(fields).filter(([k])=>filled(a[k])).map(([k,label])=>`<section class="card live-card"><h3>${label}</h3><p class="live-copy">${escapeHtml(String(a[k]))}</p></section>`).join('')}</div>${isRecruitment(a)?'':'<p class="hint">正確な集合場所と緊急連絡先は、参加承認後に申込み画面へ表示します。</p>'}<p><b>${HIGH_SCHOOL_LABELS[a.highSchoolParticipation]||HIGH_SCHOOL_LABELS.unknown}</b></p><p>大学生の対象学年：${escapeHtml(a.targetYears?.length?a.targetYears.join("・"):"学年不問")}</p>${waitingEntry(a)}${liveApplyControls(a)}${isRecruitment(a)?'':`<section class="card live-card activity-questions" data-questions="${escapeHtml(a.id)}"><h3>主催者への質問</h3><p role="status">質問を読み込んでいます…</p></section>`}${liveSupportActions(c,a.id)}${isRecruitment(a)?'':liveReviewsSection(a.id)}`);
  }
  if(current.view==='manage')return operatorHome();
  if(current.view==='participants')return operatorParticipants();
@@ -1392,7 +1473,7 @@ async function liveAction(route,data={},button){
 // 主催者への質問（公開Q&A）。参加者側は活動ページ、担当者側は募集管理ページ。
 function questionsHTML(aid,q){
  const item=x=>`<article class="question-item"><p class="question-q"><b aria-hidden="true">Q</b>${escapeHtml(x.body)}</p>${x.answer?`<p class="question-a"><b aria-hidden="true">A</b>${escapeHtml(x.answer)}</p>`:''}</article>`;
- return `<h3>主催者への質問</h3><p class="hint">参加者がまだいなくても質問できます。団体が回答した質問は、このページに公開されます。質問した人の名前は、団体にもほかの人にも表示しません。名前や連絡先は書かないでください。</p>${q.answered.length?`<div class="question-list">${q.answered.map(item).join('')}</div>`:'<p>まだ公開された質問はありません。</p>'}${q.mine.length?`<h4>回答待ちのあなたの質問</h4><div class="question-list mine">${q.mine.map(item).join('')}</div><p class="hint">回答が届くと、お知らせでお伝えします。</p>`:''}${q.canAsk?`<form data-question-form><p class="question-templates-label">よくある質問から選べます</p><div class="question-templates">${q.templates.map(t=>`<button type="button" class="btn btn-ghost btn-sm" data-question-template>${escapeHtml(t)}</button>`).join('')}</div><label>質問する内容<textarea name="body" maxlength="300" rows="3" required placeholder="例：初めてでも参加できますか？"></textarea></label><p class="live-form-error" role="alert"></p><button class="btn btn-primary btn-sm">質問を送る</button></form>`:accountUser?'':'<a class="btn btn-secondary btn-sm" href="#/login">ログインして質問する</a>'}`;
+ return `<h3>主催者への質問</h3><p class="hint">参加者がまだいなくても質問できます。回答はこのページに公開され、質問した人の名前は表示しません。</p>${q.answered.length?`<div class="question-list">${q.answered.map(item).join('')}</div>`:'<p>まだ公開された質問はありません。</p>'}${q.mine.length?`<h4>回答待ちのあなたの質問</h4><div class="question-list mine">${q.mine.map(item).join('')}</div><p class="hint">回答が届くと、お知らせでお伝えします。</p>`:''}${q.canAsk?`<details class="question-ask"${q.answered.length?'':' open'}><summary>主催者に質問する</summary><form data-question-form><p class="question-templates-label">よくある質問から選べます</p><div class="question-templates">${q.templates.map(t=>`<button type="button" class="btn btn-ghost btn-sm" data-question-template>${escapeHtml(t)}</button>`).join('')}</div><p class="hint">名前や連絡先は書かないでください。</p><label>質問する内容<textarea name="body" maxlength="300" rows="3" required placeholder="例：初めてでも参加できますか？"></textarea></label><p class="live-form-error" role="alert"></p><button class="btn btn-primary btn-sm">質問を送る</button></form></details>`:accountUser?'':'<a class="btn btn-secondary btn-sm" href="#/login">ログインして質問する</a>'}`;
 }
 async function loadQuestions(box){
  const aid=box.dataset.questions,uid=accountUser?.id,epoch=accountEpoch;
@@ -1422,7 +1503,7 @@ function bindParticipationUI(scope){
  const uid=accountUser.id,epoch=accountEpoch;
  accountAPI('live/waiting-room').then(r=>{
   if(uid!==accountUser?.id||epoch!==accountEpoch)return;waitingJoined=r.joinedActivityIds;
-  if(flow?.isConnected)flow.innerHTML=flowHTML(flowState(flow.dataset.flow,null,waitingJoined.includes(flow.dataset.flow)));
+  if(flow?.isConnected)flow.innerHTML=flowHTML(activityFlowState(flow.dataset.flow,waitingJoined.includes(flow.dataset.flow)),true);
   if(considering?.isConnected){const applied=new Set(liveOwnApplications().filter(p=>p.status!=='CANCELLED').map(p=>p.activity_id)),rows=waitingJoined.filter(id=>!applied.has(id)).map(liveActivityById).filter(Boolean);
    considering.innerHTML=rows.length?`<section class="card live-card"><h3>ラウンジで検討中（まだ申込みではありません）</h3>${rows.map(a=>`<p><b>${escapeHtml(a.title)}</b>　${escapeHtml(liveDate(a.startsAt))}</p><div class="live-navigation"><a class="btn btn-secondary btn-sm" href="#/waiting/${encodeURIComponent(a.id)}">ラウンジを見る</a><a class="btn btn-primary btn-sm" href="#/liveactivity/${encodeURIComponent(a.id)}">活動を確かめて申し込む</a></div>`).join('')}</section>`:'';}
  }).catch(()=>{});
@@ -1463,7 +1544,7 @@ function bindLiveUI(scope){
 function openLiveApply(aid,kind){
  if(!accountUser){nav('login');return;}
  const activity=liveActivityById(aid);if(!activity){toast('募集を確認できません。');return;}
- openModal(`<div class="modal-head"><h3>${escapeHtml(kind)}の申込み</h3><button class="modal-close" data-modal-close>✕</button></div><p>登録された団体へ、ニックネームと次の内容を送信します。</p>${applyStepsHTML()}<form id="liveApplyForm"><label>学年・参加区分<select name="year" required><option value="">選択してください</option>${discoveryOptions(['高校生',...STUDENT_YEARS,'地域住民・その他'],DB.profile.year||'')}</select></label><p>${HIGH_SCHOOL_LABELS[activity.highSchoolParticipation]||HIGH_SCHOOL_LABELS.unknown}</p>${liveField('message','自己紹介・質問（任意）','','textarea')}${activity.participationScope==='members'?'<label class="account-consent"><input name="memberConfirmed" type="checkbox" required><span>この団体に所属しています（所属メンバーのみの活動です）</span></label>':''}<label class="account-consent"><input name="minor" type="checkbox"><span>18歳未満です</span></label><label class="account-consent"><input name="guardian" type="checkbox"><span>18歳未満の場合：保護者の同意を得ています。団体の確認手続きにも協力します。</span></label><p class="live-form-error" role="alert"></p><button class="btn btn-primary">申し込む</button></form>`,root=>{const f=root.querySelector('form');f.onsubmit=async e=>{e.preventDefault();const b=f.querySelector('button');b.disabled=true;try{await accountAPI('live/apply/'+aid,'POST',{kind,year:f.elements.year.value,message:f.elements.message.value,minor:f.elements.minor.checked,guardian:f.elements.guardian.checked,memberConfirmed:!!f.elements.memberConfirmed?.checked});await refreshLive(false);closeModal();nav('myactivity');toast('申込みを団体へ送りました');}catch(e){f.querySelector('.live-form-error').textContent=e.message;b.disabled=false;}};});
+ openModal(`<div class="modal-head"><h3>${escapeHtml(kind||'参加')}の申込み</h3><button class="modal-close" data-modal-close>✕</button></div><p>登録された団体へ、ニックネームと次の内容を送信します。</p>${applyStepsHTML()}<form id="liveApplyForm">${kind?'':`<fieldset class="apply-kind-choice"><legend>参加のしかた</legend>${Object.entries(APPLY_KINDS).map(([k,desc],i)=>`<label><input type="radio" name="kind" value="${k}" required ${activity.highSchoolParticipation==='visit'&&k==='見学'||i===1&&activity.highSchoolParticipation!=='visit'?'checked':''}><span><b>${k}</b><small>${desc}</small></span></label>`).join('')}${activity.highSchoolParticipation==='visit'?'<p class="hint">高校生は見学のみ申し込めます。</p>':''}</fieldset>`}<label>学年・参加区分<select name="year" required><option value="">選択してください</option>${discoveryOptions(['高校生',...STUDENT_YEARS,'地域住民・その他'],DB.profile.year||'')}</select></label><p>${HIGH_SCHOOL_LABELS[activity.highSchoolParticipation]||HIGH_SCHOOL_LABELS.unknown}</p>${liveField('message','自己紹介・質問（任意）','','textarea')}${activity.participationScope==='members'?'<label class="account-consent"><input name="memberConfirmed" type="checkbox" required><span>この団体に所属しています（所属メンバーのみの活動です）</span></label>':''}<label class="account-consent"><input name="minor" type="checkbox"><span>18歳未満です</span></label><label class="account-consent"><input name="guardian" type="checkbox"><span>18歳未満の場合：保護者の同意を得ています。団体の確認手続きにも協力します。</span></label><p class="live-form-error" role="alert"></p><button class="btn btn-primary">申し込む</button></form>`,root=>{const f=root.querySelector('form');f.onsubmit=async e=>{e.preventDefault();const b=f.querySelector('button');b.disabled=true;try{await accountAPI('live/apply/'+aid,'POST',{kind:kind||f.elements.kind.value,year:f.elements.year.value,message:f.elements.message.value,minor:f.elements.minor.checked,guardian:f.elements.guardian.checked,memberConfirmed:!!f.elements.memberConfirmed?.checked});await refreshLive(false);closeModal();nav('myactivity');toast('申込みを団体へ送りました');}catch(e){f.querySelector('.live-form-error').textContent=e.message;b.disabled=false;}};});
 }
 function liveVerificationHTML(c){return '<section class="live-verification"><h2>団体情報の確認状況</h2>'+(c.verification?'<p>'+escapeHtml(c.verification.checkedBy)+'が '+escapeHtml(liveDate(c.verification.checkedAt))+' に確認</p><div class="live-navigation">'+c.verification.items.map(item=>'<span class="badge badge-neutral">✓ '+escapeHtml(item)+'</span>').join('')+'</div>':'<p>詳しい確認項目は運営が整理中です。</p>')+'<p class="hint">確認状況は、参加人数・口コミ・ポイントとは別の情報です。確認済みでも、活動の安全を保証するものではありません。</p></section>';}
 async function openLiveRoom(aid,draft=''){
@@ -1510,7 +1591,7 @@ function renderSurfaceChrome(){
   const brand=document.querySelector('.brand');
   if(brand){brand.dataset.nav=OPERATOR_APP?'manage':'home';brand.setAttribute('aria-label',OPERATOR_APP?'トビヨリ 運営ホームへ':'トビヨリ ホームへ');}
   const actions=document.querySelector('.topbar-cta');
-  if(actions)actions.innerHTML=OPERATOR_APP?'<span class="operator-label">運営者用</span><a class="btn btn-ghost btn-sm" href="/#/home">利用者画面へ ↗</a>':'<button class="btn btn-ghost btn-sm participant-more" data-more aria-label="その他のメニュー">その他</button>';
+  if(actions)actions.innerHTML=OPERATOR_APP?'<span class="operator-label">運営者用</span><a class="btn btn-ghost btn-sm" href="/#/home">利用者画面へ ↗</a>':`${accountUser?`<button class="topbar-bell" data-nav="notifications" aria-label="お知らせ（未読 ${liveUnreadCount()}件）">${icon('bell')}${liveUnreadCount()?`<span class="topbar-badge">${Math.min(liveUnreadCount(),99)}</span>`:''}</button>`:''}<button class="btn btn-ghost btn-sm participant-more" data-more aria-label="その他のメニュー">その他</button>`;
   actions?.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.nav));
 }
 function operatorHome(){
@@ -1533,7 +1614,7 @@ function liveBuzzSummary(c){
  return `<div class="live-buzz-summary" data-community-buzz="${escapeHtml(c.id)}"><div><span>にぎわいポイント</span><strong>${b.points.toLocaleString()} <small>pt</small></strong></div><dl><div><dt>のべ参加</dt><dd>${b.participants.toLocaleString()}人</dd></div><div><dt>口コミ</dt><dd>${b.reviews.toLocaleString()}件</dd></div><div><dt>保存</dt><dd>${b.saves.toLocaleString()}人</dd></div><div><dt>閲覧（30日）</dt><dd>${b.views.toLocaleString()}回</dd></div></dl></div>`;
 }
 function liveBuzzHTML(){
- const communities=[...(LIVE.catalog?.communities||[])].sort((a,b)=>(b.buzz?.points||0)-(a.buzz?.points||0)||a.name.localeCompare(b.name,'ja')||a.id.localeCompare(b.id)).slice(0,6);
+ const communities=[...(LIVE.catalog?.communities||[])].sort((a,b)=>(b.buzz?.points||0)-(a.buzz?.points||0)||a.name.localeCompare(b.name,'ja')||a.id.localeCompare(b.id)).slice(0,3);
  return `<section class="section container live-buzz"><div class="section-head"><div><div class="eyebrow">Community Voices</div><h2>にぎわっているコミュニティ</h2><p>参加・口コミ・保存・閲覧から、みんなが集まる場所を見つけよう。</p></div></div><details class="live-buzz-help"><summary>にぎわいポイントの計算方法</summary><p>参加完了1人・1回＝30pt、口コミ1件＝10pt、現在保存している1人＝5pt、詳細ページの閲覧1回＝1pt。実際の参加を一番重くして、団体ごとに合計します。</p><p>参加と口コミはこれまでの合計、保存は現在の人数です。保存は1人1団体につき1件。解除すると5ptを取り消すため、保存の繰り返しでは増えません。口コミは参加完了後に同じ活動で1人1件まで。星の数で点数は変わらず、編集では増えず、削除すると10ptを取り消します。</p><p>閲覧はログインした人が団体・活動の詳細を開いたとき、日本時間で同じ団体につき1人1日1回。検索結果に表示されただけでは加算しません。今日を含む直近30日分を集計し、期間を過ぎると取り消します。団体の担当者と運営者の保存・閲覧は加点しません。保存・閲覧した人の名前は公開しません。</p><p>ポイントが多い順に最大6団体を紹介します。順位番号は付けません。団体の規模や活動期間で差が出るため、安全性や運営の質の評価には使いません。サンプルの参加・口コミ・保存・閲覧は集計に含みません。協賛の有無も点数には影響しません。</p></details>${!LIVE.loaded?'<p role="status">にぎわいを集計しています…</p>':LIVE.error?'<p role="alert">集計を読み込めませんでした。</p><button class="btn btn-secondary" data-live-refresh>もう一度読み込む</button>':`<div class="act-grid">${communities.map(c=>`<article class="card live-card"><span class="badge badge-neutral">${escapeHtml(c.city)}</span><h3>${escapeHtml(c.name)}</h3>${liveBuzzSummary(c)}<p class="hint">確認状況は団体の紹介で確認できます。</p><button class="btn btn-secondary btn-sm" data-nav="livecommunity" data-param="${c.id}">紹介・口コミを見る →</button>${liveSaveButton(c)}</article>`).join('')||'<div class="card live-card"><h3>これから、参加の記録が集まります</h3><p>確認を終えた団体が掲載されると、参加・口コミ・保存・閲覧の集計をここに表示します。</p><button class="btn btn-secondary" data-nav="live">コミュニティを探す</button></div>'}</div>`}</section>`;
 }
 function liveOwnReview(aid){return (LIVE.dashboard?.reviews||[]).find(r=>r.activityId===aid);}
@@ -1872,7 +1953,7 @@ function profileParticipationBadgesHTML(){const badges=displayedParticipationBad
 function participationBadgeCollectionHTML(){const d=LIVE.dashboard||{},s=d.participationSummary||{genres:[],genreCount:0,longestMonths:0},badges=d.participationBadges||[];return `<section class="participation-badge-collection"><h3>わたしの参加の足あと</h3><p>好きな分野を深めるのも、新しい分野へ寄り道するのも、あなたらしい旅。</p><div class="participation-facts"><span><b>${s.genreCount}</b> ジャンルに参加</span><span>同じ団体で最長 <b>${s.longestMonths}</b> か月連続</span></div>${s.genres.length?`<ul class="participation-genre-progress">${s.genres.slice(0,8).map(g=>`<li><b>${escapeHtml(g.genre)}</b><span>${g.count}回参加${g.count<5?` · マスターまであと${5-g.count}回`:g.count<10?` · 達人まであと${10-g.count}回`:g.count<20?` · グランドマスターまであと${20-g.count}回`:''}</span></li>`).join('')}</ul>`:''}${badges.length?`<div class="participation-earned-grid">${[...badges].sort((a,b)=>b.threshold-a.threshold).map(b=>`<article>${participationBadgeIcon(b)}<div><b>${escapeHtml(b.title)}</b><p>${escapeHtml(b.description)}</p></div></article>`).join('')}</div>`:'<p class="hint">参加の記録が増えると、ここにバッジが集まります。</p>'}<details><summary>バッジの獲得条件</summary><ul><li>同じジャンル：5回でマスター、10回で達人、20回でグランドマスター。</li><li>同じ団体に毎月1回以上：3・6・12か月連続で継続のバッジ。参加しない月があると、新しい連続記録を数えます。</li><li>異なるジャンル：3・5・8分野で、発見のバッジ。</li></ul><p class="hint">担当者が完了を確認した参加を1活動1回で数えます。過去の記録も含め、獲得済みのバッジは残ります。性格や能力の診断ではなく、参加の積み重ねを表しています。自分のペースで楽しんでください。</p></details></section>`;}
 /* Region-neutral participation journey and guided community registration. */
 function journeyGlyph(color,size){
- return `<svg width="${size}" height="${size}" viewBox="95 63 343 337" aria-hidden="true"><image href="tobiyori-logo-source.png" width="1345" height="937"/></svg>`;
+ return `<svg width="${size}" height="${size}" viewBox="95 63 343 337" aria-hidden="true"><image href="tobiyori-logo-transparent.png" width="1345" height="937"/></svg>`;
 }
 function doorJourneyHTML(rawPoints){
  const points=Math.max(0,Number(rawPoints)||0),next=nextLevelFor(points),index=Math.max(0,LEVELS.findLastIndex(l=>points>=l.min));
@@ -2160,14 +2241,17 @@ function trustCardHTML(communityId, editable){
 }
 
 /* ---------------- Router ---------------- */
+// 下部タブは利用者のやりたいことで5つに絞る。地域・大学・企業は「さがす」の中の切り替えタブで選ぶ。
 const ROUTES = [
   {id:'home', label:'ホーム', icon:'home'},
-  {id:'list', label:'活動を探す', icon:'list'},
-  {id:'regional', label:'地域コミュニティ', tabLabel:'地域', icon:'users'},
-  {id:'campus', label:'大学・サークル', tabLabel:'大学・<br>サークル', icon:'building'},
-  {id:'company', label:'企業', icon:'briefcase'},
+  {id:'list', label:'さがす', icon:'list'},
+  {id:'waiting', label:'ラウンジ', icon:'users'},
+  {id:'myactivity', label:'予定', icon:'clock'},
   {id:'mypage', label:'マイページ', icon:'user'},
 ];
+// タブにない画面は、内容が近いタブを点灯させる
+const NAV_PARENT={map:'list',regional:'list',campus:'list',company:'list',live:'list',liveactivity:'list',livecommunity:'list',serendipity:'list',saved:'mypage',following:'mypage',offers:'mypage',notifications:'mypage',support:'mypage'};
+const navActive=view=>OPERATOR_APP?view:NAV_PARENT[view]||view;
 let current = {view:'home', param:null};
 
 function nav(view, param){
@@ -2537,7 +2621,7 @@ function bindReviewActions(scope){scope.querySelectorAll('[data-review-edit]').f
 
 function communityBuzzHTML(){return liveBuzzHTML();}
 function homeGuideSummaryHTML(){
- return `<section class="section container home-guide-summary" aria-labelledby="homeGuideTitle"><div class="section-head"><div><h2 id="homeGuideTitle">はじめての方へ</h2><p>使い方は、ご利用ガイドで確認できます。</p></div><button class="btn btn-secondary btn-sm" data-nav="guide">ご利用ガイド</button></div><div class="home-guide-lines"><div><h3>参加までの流れ</h3><p>活動を探す → 内容を確認 → 申し込む → 承認後に参加</p><a href="#/guide/participant">参加する方向けのガイドを見る</a></div><div><h3>参加の記録</h3><p>参加履歴・ポイント・バッジはマイページで確認できます。</p><a href="#/mypage">マイページを見る</a></div><div><h3>コミュニティを運営する方へ</h3><p>運営による掲載から、募集・参加者の受け入れまでをご案内します。</p><a href="#/guide/community">コミュニティ向けのガイドを見る</a></div></div></section>`;
+ return `<section class="section container home-guide-summary" aria-labelledby="homeGuideTitle"><div class="section-head"><div><h2 id="homeGuideTitle">はじめての方へ</h2><p>使い方は、ご利用ガイドで確認できます。</p></div><button class="btn btn-secondary btn-sm" data-nav="guide">ご利用ガイド</button></div><div class="home-guide-lines"><div><h3>参加までの流れ</h3><p>活動を探す → 内容を確認 → 申し込む → 承認後に参加</p><a href="#/guide/participant">参加する方向けのガイドを見る</a></div><div><h3>安心して参加できる仕組み</h3><p>団体は運営が活動の実態を確認してから掲載します。正確な集合場所は参加確定まで非公開です。</p><a href="#/safety">安心・安全への取り組みを見る</a></div><div><h3>コミュニティを運営する方へ</h3><p>運営による掲載から、募集・参加者の受け入れまでをご案内します。</p><a href="#/guide/community">コミュニティ向けのガイドを見る</a></div></div></section>`;
 }
 function viewGuide(){
  const org=current.param==='community';
@@ -2567,19 +2651,19 @@ function viewHome(){
       <div class="hero-text">
         <div class="eyebrow">群馬の学生と地域をつなぐ</div>
         <h1>ふとした出会いが、<br>「好き」のはじまり。</h1>
-        <p class="hero-lead">なんとなく気になったサークル。たまたま見つけた地域の活動。<br>大学やまちをこえて、新しい仲間や、まだ知らない自分の「好き」に出会ってみませんか？</p>
+        <p class="hero-lead">大学やまちをこえて、新しい仲間と、まだ知らない自分の「好き」に出会おう。</p>
         <div class="hero-actions">
-          <button class="btn btn-primary" data-nav="map">${icon('map')}地図で活動を探す</button>
-          <button class="btn btn-secondary" data-nav="list">${icon('list')}一覧で探す</button>
+          <button class="btn btn-primary" data-nav="list">${icon('list')}活動をさがす</button>
+          <button class="btn btn-ghost" data-nav="map">${icon('map')}地図で見る</button>
         </div>
       </div>
-      <div class="hero-art tobiyori-hero-art" aria-hidden="true"><span class="tobiyori-bubble">今日は、どこへ飛びよる？</span><div class="tobiyori-mascot"><img src="tobiyori-logo-source.png" alt=""></div></div>
+      <div class="hero-art tobiyori-hero-art" aria-hidden="true"><span class="tobiyori-bubble">今日は、どこへ飛びよる？</span><div class="tobiyori-mascot"><img src="tobiyori-logo-transparent.png" alt=""></div></div>
     </div>
   </section>
 
   ${discoveryPurposeHTML()}
-  ${waitingHomeHTML()}
   ${liveHomeActivitiesHTML()}
+  ${waitingHomeHTML()}
 
   <section class="section container" style="padding-top:0;">
     ${homeAiTeaserHTML()}
@@ -2588,15 +2672,7 @@ function viewHome(){
   ${communityBuzzHTML()}
   ${supporterHomeHTML()}
 
-  <section class="section container" style="padding-top:0;">
-    <div class="info-box">
-      ${icon('shield')}
-      <div>
-        <div class="info-box-title">安心して参加できる仕組み</div>
-        <p class="faint" style="font-size:13.5px;">登録された団体は運営者が活動の実態と目的を確認してから掲載します。確認内容と確認日は団体ページで確認できます。正確な活動場所は申込みが承認されるまで非公開です。<button data-nav="safety" style="background:none;border:none;color:var(--blue-deep);font-weight:700;cursor:pointer;padding:0;text-decoration:underline;">安心・安全への取り組みを見る</button></p>
-      </div>
-    </div>
-  </section>
+
   ${homeGuideSummaryHTML()}
   ${footerHTML()}
   `;
@@ -3557,9 +3633,10 @@ function renderNav(){
   placeFeedbackButton();
   const routes=surfaceRoutes();
   const dNav = document.getElementById('desktopNav');
-  dNav.innerHTML = routes.map(r=>`<button data-nav="${r.id}" class="${current.view===r.id?'active':''}">${r.label}</button>`).join('');
+  const active=navActive(current.view);
+  dNav.innerHTML = routes.map(r=>`<button data-nav="${r.id}" class="${active===r.id?'active':''}">${r.label}</button>`).join('');
   const bTabs = document.getElementById('bottomTabs');
-  bTabs.innerHTML = routes.map(r=>`<button class="tab-btn ${current.view===r.id?'active':''}" data-nav="${r.id}" aria-label="${r.label}" ${current.view===r.id?'aria-current="page"':''}>${icon(r.icon)}<span>${r.tabLabel||r.label}</span></button>`).join('');
+  bTabs.innerHTML = routes.map(r=>`<button class="tab-btn ${active===r.id?'active':''}" data-nav="${r.id}" aria-label="${r.label}" ${active===r.id?'aria-current="page"':''}>${icon(r.icon)}<span>${r.tabLabel||r.label}</span></button>`).join('');
 }
 /* ---------------- Feedback (ご意見): anonymous sending + operator analysis ---------------- */
 // Non-identifying context for analysis: which screens, how long, which device. No account, name or contact.
@@ -3602,7 +3679,7 @@ function openFeedback(){
 // It sits above the bottom tabs on phones, and steps aside while typing or while a dialog is open.
 function placeFeedbackButton(){
  let b=document.getElementById('feedbackFab');
- if(!b){b=document.createElement('button');b.id='feedbackFab';b.type='button';b.className='feedback-fab';b.dataset.feedback='';b.setAttribute('aria-label','ご意見・不具合を送る');b.innerHTML=`${icon('megaphone')}<span>ご意見</span>`;document.body.append(b);}
+ if(!b){b=document.createElement('button');b.id='feedbackFab';b.type='button';b.className='feedback-fab';b.dataset.feedback='';b.setAttribute('aria-label','ご意見・不具合を送る');b.innerHTML=icon('megaphone');b.title='ご意見・不具合を送る';document.body.append(b);}
  const tabs=document.getElementById('bottomTabs'),shown=tabs&&getComputedStyle(tabs).display!=='none'&&tabs.offsetHeight>0;
  document.documentElement.style.setProperty('--feedback-fab-bottom',(shown?tabs.offsetHeight+12:20)+'px');
 }
@@ -3669,17 +3746,12 @@ function bindFeedbackAdmin(scope){
 function openMoreSheet(){
   openModal(`
     <div class="modal-head"><h3 style="font-size:17px;font-weight:900;">その他のメニュー</h3><button class="modal-close" data-modal-close>✕</button></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <button class="btn btn-ghost btn-block" data-nav="waiting" data-modal-close>よりみちラウンジ</button><button class="btn btn-ghost btn-block" data-nav="guide" data-modal-close>ご利用ガイド</button>
-
-      <button class="btn btn-ghost btn-block" data-nav="live" data-modal-close>募集中の活動</button>
-      <button class="btn btn-ghost btn-block" data-nav="myactivity" data-modal-close>申込み・参加記録</button>
-      <button class="btn btn-ghost btn-block" data-nav="saved" data-modal-close>保存したコミュニティ</button><button class="btn btn-ghost btn-block" data-nav="following" data-modal-close>フォロー中</button><button class="btn btn-ghost btn-block" data-nav="offers" data-modal-close>コミュニティからのオファー</button><button class="btn btn-ghost btn-block" data-nav="support" data-modal-close>相談の対応状況・ブロック</button>
-      <button class="btn btn-ghost btn-block" data-nav="notifications" data-modal-close>お知らせ</button>
-      <button class="btn btn-ghost btn-block" data-nav="safety" data-modal-close>${icon('shield')}安心・安全への取り組み</button>
-      <button class="btn btn-secondary btn-block" data-feedback>ご意見・不具合を送る</button>
+    <div class="more-menu">
+      <section><h4>わたしの記録</h4><button class="more-item" data-nav="saved" data-modal-close>保存したコミュニティ</button><button class="more-item" data-nav="following" data-modal-close>フォロー中</button><button class="more-item" data-nav="offers" data-modal-close>コミュニティからのオファー</button><button class="more-item" data-nav="notifications" data-modal-close>お知らせ</button></section>
+      <section><h4>安心・サポート</h4><button class="more-item" data-nav="guide" data-modal-close>ご利用ガイド</button><button class="more-item" data-nav="safety" data-modal-close>安心・安全への取り組み</button><button class="more-item" data-nav="support" data-modal-close>相談の対応状況・ブロック</button></section>
+      <section><button class="btn btn-secondary btn-block" data-feedback>ご意見・不具合を送る</button>${accountUser?'<button class="more-item more-logout" data-more-logout>ログアウト</button>':''}</section>
     </div>
-  `);
+  `,root=>{root.querySelector('[data-more-logout]')?.addEventListener('click',()=>{closeModal();logoutAccount();});});
 }
 
 function render(){

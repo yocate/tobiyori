@@ -34,7 +34,7 @@ const errors=[];
  for(const aid of [open,members])await ok('live/review/'+aid+'/approve',operator,{type:'activity',note:'検証'});
 
  // Members-only: the form asks for membership and the server requires it.
- const sp=await pageFor(student,390);const applyFrom=async(aid)=>{await sp.goto(base+'/#/liveactivity/'+aid);await sp.waitForLoadState('networkidle');await sp.locator('[data-live-apply][data-kind=体験参加]').click();await sp.locator('#liveApplyForm').waitFor();};
+ const sp=await pageFor(student,390);const applyFrom=async(aid)=>{await sp.goto(base+'/#/liveactivity/'+aid);await sp.waitForLoadState('networkidle');await sp.locator('[data-live-apply]').click();await sp.locator('#liveApplyForm').waitFor();};
  await applyFrom(members);assert.match(await sp.locator('#app').innerText(),/所属メンバーのみが対象/);await sp.locator('#liveApplyForm [name=memberConfirmed]').waitFor();
  await sp.locator('#liveApplyForm [name=year]').selectOption('大学1年生');await sp.locator('#liveApplyForm [name=memberConfirmed]').check();
  const applied=sp.waitForResponse(r=>r.url().includes('/api/live/apply/'));await sp.locator('#liveApplyForm button.btn-primary').click();assert.equal((await applied).status(),201);
