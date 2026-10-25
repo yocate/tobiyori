@@ -36,7 +36,7 @@ async function makeActivity(cid,extras={}){const a=await ok('activities',admin,{
  await ok('blocks/'+cid,student,{block:true});assert.equal((await ok('catalog',student)).communities.some(c=>c.id===cid),false);assert.equal((await ok('dashboard',student)).applications[0].status,'CANCELLED');assert.equal((await api('activity-messages/'+aid,student)).status,403);assert.equal((await api('apply/'+aid,student,{kind:'見学'})).status,400);
  await ok('blocks/'+cid,student,{block:false});await ok('apply/'+aid,student,{kind:'見学'});await ok('applications/'+p.id+'/approve',admin,{});
  await ok('activities/'+aid+'/cancel',admin,{reason:'開催中止の検証'});assert.equal((await ok('dashboard',student)).applications[0].status,'CANCELLED');assert.equal((await ok('offers',companyOpt)).offers.find(o=>o.id===offered.id)?.available,undefined);
- await ok('communities/'+cid+'/transfer',admin,{email:'other@example.test'});assert.equal((await ok('dashboard',other)).communities[0].id,cid);assert.equal((await api('activities',admin,{communityId:cid})).status,403);
+ await ok('communities/'+cid+'/transfer',admin,{accountId:other.id});assert.equal((await ok('dashboard',other)).communities[0].id,cid);assert.equal((await api('activities',admin,{communityId:cid})).status,403);
 
  const sponsor=await makeOrg({...orgData,name:'協賛のみ団体',sponsorListed:true,sponsorMessage:'試験用'});
  const sponsorPublic=(await ok('catalog')).communities.find(c=>c.id===sponsor);assert(sponsorPublic.sponsorListed);assert(!(await ok('catalog')).activities.some(a=>a.communityId===sponsor));

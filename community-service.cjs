@@ -328,7 +328,8 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      }
      const c=org(key);if(c.owner_id!==user.id&&!admin(user))throw bad(403,'この団体は編集できません。');
      if(action==='transfer'){
-       if(!admin(user))throw bad(403,'運営者専用です。');const email=required(input.email,'引継ぎ先の登録メールアドレス',254).toLowerCase();const target=one('SELECT id FROM accounts WHERE email=?',email);if(!target)throw bad(400,'登録済みのアカウントを指定してください。');
+       if(!admin(user))throw bad(403,'運営者専用です。');// メールアドレスは登録時に本人確認していないため、引継ぎ先は本人が画面で確認したアカウントIDで指定する
+       const accountId=required(input.accountId,'引継ぎ先のアカウントID',36);const target=one('SELECT id FROM accounts WHERE id=?',accountId);if(!target)throw bad(400,'登録済みのアカウントIDを指定してください。');
        run('UPDATE live_communities SET owner_id=?,updated_at=? WHERE id=?',target.id,now(),key);notify(target.id,'団体の担当を引き継ぎました。','org');notify(c.owner_id,'団体の担当者が変更されました。','org');audit(user,'community_transfer',key,target.id);return send({ok:true});
      }
      // 自動休止は、担当者が情報を確認したら解除する。手動の休止はそのまま。
