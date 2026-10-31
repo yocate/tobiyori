@@ -35,12 +35,12 @@ async function signup(n){const r=await fetch(base+'/api/register',{method:'POST'
  assert.equal((await api('feedback',null,{category:'other',body:'=HYPERLINK("x")'})).status,201);assert((await api('feedback/export.csv',operator)).data.includes(`"'=HYPERLINK(""x"")"`),'formulas are neutralized in CSV');
  for(let i=0;i<20;i++)await api('feedback',null,{category:'other',body:'連投'+i});assert.equal((await api('feedback',null,{category:'other',body:'over'})).status,429);
 
- // Browser: a guest sends from the menu, an operator reviews it in the operator screens.
+ // Browser: a guest sends from the footer, an operator reviews it in the operator screens.
  const {chromium}=require(process.env.TOBIYORI_PLAYWRIGHT||'playwright');
  browser=await chromium.launch({headless:true,...(process.env.TOBIYORI_BROWSER?{executablePath:process.env.TOBIYORI_BROWSER}:{channel:'chrome'})});
  await stop();await start();// reset the in-memory rate limit
  const errors=[];const guest=await (await browser.newContext({viewport:{width:390,height:844}})).newPage();guest.on('pageerror',e=>errors.push(e.message));
- await guest.goto(base+'/#/list');await guest.waitForLoadState('networkidle');await guest.locator('[data-more]').first().click();await guest.locator('#modalRoot [data-feedback]').click();
+ await guest.goto(base+'/#/list');await guest.waitForLoadState('networkidle');await guest.locator('.simple-footer [data-feedback]').click();
  await guest.locator('#feedbackForm').waitFor();await guest.locator('#feedbackForm [type=submit]').click();assert.match(await guest.locator('#feedbackForm .live-form-error').innerText(),/選んで/);
  await guest.locator('[data-feedback-category=bug]').click();await guest.locator('[data-feedback-rating="3"]').click();await guest.locator('#feedbackBody').fill('検索で結果が出ないことがある');
  const sent=guest.waitForResponse(r=>r.url().endsWith('/api/feedback'));await guest.locator('#feedbackForm [type=submit]').click();assert.equal((await sent).status(),201);await guest.getByText('ご意見を送りました。ありがとうございます').waitFor();

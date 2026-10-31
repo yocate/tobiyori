@@ -23,7 +23,7 @@ async function api(route,user,body){let result;try{await service.handle({req:{me
  run('UPDATE live_reviews SET anonymous=0');
  const first=(await api('community-reviews/one')).data,second=(await api('community-reviews/one?offset=20')).data;
  assert.equal(first.reviews.length,20);assert.equal(first.total,22);assert.equal(first.nextOffset,20);assert.equal(second.reviews.length,2);assert.equal(second.nextOffset,null);assert.equal(new Set([...first.reviews,...second.reviews].map(r=>r.id)).size,22);
- assert(!JSON.stringify(first).includes('非公開ニックネーム'));assert(first.reviews.every(r=>!('user_id' in r)&&!('nickname' in r)));
+ assert(JSON.stringify(first).includes('非公開ニックネーム'));assert(first.reviews.every(r=>!('user_id' in r)&&!('nickname' in r)&&r.anonymous===false));
  assert.equal((await api('community-reviews/one?offset=-1')).status,400);
  run("UPDATE live_communities SET status='SUSPENDED' WHERE id='one'");assert.equal((await api('community-reviews/one')).status,404);assert.equal((await api('reviews/a1')).status,404);assert.equal((await api('catalog')).data.communities.length,1);
  // Authors can remove their own text even after their community is hidden.

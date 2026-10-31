@@ -42,15 +42,54 @@ async function fetchPublicPage(value,{signal,redirects=0}={}){
  }).then(result=>result.redirect?fetchPublicPage(result.redirect,{signal,redirects:redirects+1}):result);
 }
 function decodeEntities(s){return s.replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi,(match,key)=>{if(key[0]==='#'){const n=key[1].toLowerCase()==='x'?parseInt(key.slice(2),16):parseInt(key.slice(1),10);return n>0&&n<=0x10ffff&&!(n>=0xd800&&n<=0xdfff)?String.fromCodePoint(n):'';}return {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '}[key.toLowerCase()];});}
-function plain(s='',max=160){return decodeEntities(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,'$1').replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi,'').replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim().slice(0,max);}
+// タグは一度だけ前へ走査する。閉じタグがない入力でも末尾の再走査を繰り返さない。
+function* tags(source){
+ const namePattern=/<\/?([A-Za-z][\w:.-]*)/y;let cursor=0;
+ while(cursor<source.length){
+  const start=source.indexOf('<',cursor);if(start<0)return;
+  const special=source.startsWith('<!--',start)?['-->',4]:source.startsWith('<![CDATA[',start)?[']]>',9]:null;
+  if(special){const close=source.indexOf(special[0],start+special[1]);if(close<0)return;cursor=close+special[0].length;yield {name:'',start,end:cursor};continue;}
+  namePattern.lastIndex=start;const match=namePattern.exec(source);
+  if(!match&&!source.startsWith('<!',start)&&!source.startsWith('<?',start)){cursor=start+1;continue;}
+  let end=match?namePattern.lastIndex:start+2,quote='';
+  for(;end<source.length;end++){const char=source[end];if(quote){if(char===quote)quote='';}else if(char==='"'||char==="'")quote=char;else if(char==='>')break;}
+  if(end===source.length)return;
+  cursor=end+1;const tag={name:match?match[1].toLowerCase():'',closing:source[start+1]==='/',selfClosing:source[end-1]==='/',start,end:cursor,raw:source.slice(start,cursor)};
+  yield tag;
+  // raw text内の比較演算子・引用符・偽タグは解釈せず、対応する閉じタグへ進む。
+  if(!tag.closing&&!tag.selfClosing&&(tag.name==='script'||tag.name==='style')){
+   const closing=new RegExp('</'+tag.name+'(?=[\\s/>])','gi');closing.lastIndex=cursor;
+   const close=closing.exec(source);if(!close)return;cursor=close.index;
+  }
+ }
+}
+function* blocks(source,names,limit=1){
+ let open=null,count=0;
+ for(const tag of tags(source)){
+  if(!open){if(!tag.closing&&!tag.selfClosing&&names.includes(tag.name))open=tag;}
+  else if(tag.closing&&tag.name===open.name){yield {name:open.name,body:source.slice(open.end,tag.start)};open=null;if(++count>=limit)return;}
+ }
+}
+function plain(s='',max=160){
+ const expanded=[];let offset=0;
+ for(;;){const start=s.indexOf('<![CDATA[',offset);if(start<0){expanded.push(s.slice(offset));break;}expanded.push(s.slice(offset,start));const end=s.indexOf(']]>',start+9);if(end<0){expanded.push(s.slice(start+9));break;}expanded.push(s.slice(start+9,end));offset=end+3;}
+ const source=expanded.join(''),chunks=[];let cursor=0,blocked='';
+ for(const tag of tags(source)){
+  if(!blocked){chunks.push(source.slice(cursor,tag.start),' ');if(!tag.closing&&['script','style'].includes(tag.name))blocked=tag.name;}
+  else if(tag.closing&&tag.name===blocked)blocked='';
+  cursor=tag.end;
+ }
+ if(!blocked)chunks.push(source.slice(cursor));
+ return decodeEntities(chunks.join('')).replace(/\s+/g,' ').trim().slice(0,max);
+}
 function attr(tag,key){const match=tag.match(new RegExp('(?:^|\\s)'+key+'\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|([^\\s>]+))','i'));return match?decodeEntities(match[1]??match[2]??match[3]):'';}
-function inner(xml,name){return new RegExp('<'+name+'\\b[^>]*>([\\s\\S]*?)<\\/'+name+'>','i').exec(xml)?.[1]||'';}
+function inner(xml,name){return blocks(xml,[name.toLowerCase()]).next().value?.body||'';}
 function linkURL(v,base){if(!v)return '';try{return publicURL(v,base).href;}catch{return '';}}
 function parsePage(page){
  const {body,url}=page;if(/<!DOCTYPE|<!ENTITY/i.test(body)&&!/<html\b/i.test(body))throw sourceError('このフィードの形式には対応していません。');
  if(/<(rss|feed|rdf:RDF)\b/i.test(body)){
-  const entries=[...body.matchAll(/<(item|entry)\b[^>]*>([\s\S]*?)<\/\1>/gi)].slice(0,100).map(([,kind,x],i)=>{
-   const link=kind.toLowerCase()==='entry'?[...x.matchAll(/<link\b[^>]*>/gi)].map(m=>m[0]).find(t=>!attr(t,'rel')||attr(t,'rel')==='alternate'):null;
+  const entries=[...blocks(body,['item','entry'],100)].map(({name:kind,body:x},i)=>{
+   const link=kind.toLowerCase()==='entry'?[...tags(x)].filter(t=>t.name==='link'&&!t.closing).map(t=>t.raw).find(t=>!attr(t,'rel')||attr(t,'rel')==='alternate'):null;
    const href=linkURL(link?attr(link,'href'):plain(inner(x,'link'),2000),url);
    const published=plain(inner(x,'pubDate')||inner(x,'published')||inner(x,'updated')||inner(x,'dc:date'),80),time=Date.parse(published);
    return {title:plain(inner(x,'title'),100),text:plain(inner(x,'description')||inner(x,'summary'),140),url:href,publishedAt:Number.isFinite(time)?new Date(time).toISOString():null,index:i};
@@ -59,8 +98,8 @@ function parsePage(page){
   return {mode:'feed',items:unique.slice(0,5).map(({index,...x})=>x)};
  }
  if(!/<html\b|<title\b/i.test(body))throw sourceError('読み取れる記事が見つかりませんでした。');
- const tags=[...body.matchAll(/<meta\b[^>]*>/gi)].map(m=>m[0]);const meta=key=>attr(tags.find(t=>attr(t,'property')===key||attr(t,'name')===key)||'','content');
- const alternate=[...body.matchAll(/<link\b[^>]*>/gi)].map(m=>m[0]).find(t=>attr(t,'rel').split(/\s+/).includes('alternate')&&/^application\/(rss|atom)\+xml$/i.test(attr(t,'type')));
+ const pageTags=[...tags(body)],metaTags=pageTags.filter(t=>t.name==='meta'&&!t.closing).map(t=>t.raw);const meta=key=>attr(metaTags.find(t=>attr(t,'property')===key||attr(t,'name')===key)||'','content');
+ const alternate=pageTags.filter(t=>t.name==='link'&&!t.closing).map(t=>t.raw).find(t=>attr(t,'rel').split(/\s+/).includes('alternate')&&/^application\/(rss|atom)\+xml$/i.test(attr(t,'type')));
  const title=plain(meta('og:title')||inner(body,'title'),100);if(!title)throw sourceError('読み取れるページ情報が見つかりませんでした。');
  return {mode:'page',items:[{title,text:plain(meta('og:description')||meta('description'),140),url,publishedAt:null}],feedURL:alternate?linkURL(attr(alternate,'href'),url):''};
 }

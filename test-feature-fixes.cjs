@@ -29,7 +29,7 @@ const errors=[];
  browser=await chromium.launch({headless:true,...(process.env.TOBIYORI_BROWSER?{executablePath:process.env.TOBIYORI_BROWSER}:{channel:'chrome'})});
 
  // Review page shows the city, fee and participation scope, not only the safety fields.
- const admin=await pageFor(operator);await admin.goto(base+'/operator.html#/admin');await admin.getByText('募集の審査',{exact:true}).waitFor();
+ const admin=await pageFor(operator);await admin.goto(base+'/operator.html#/admin');await admin.locator('#app').waitFor();
  const reviewText=await admin.locator('#app').innerText();for(const label of ['会場の市町村：高崎市','参加費：材料費500円 ／ 500円','団体外からの参加：所属メンバーのみ','持ち物：確認用の案内'])assert(reviewText.includes(label),label);
  for(const aid of [open,members])await ok('live/review/'+aid+'/approve',operator,{type:'activity',note:'検証'});
 
@@ -46,7 +46,7 @@ const errors=[];
  assert.equal(await sp.locator('#injected').count(),0);assert.match(await sp.locator('.activity-summary').innerText(),/<b id="injected">高崎市<\/b>/);
 
  // Achievements follow the real application, not the sample counters.
- await sp.goto(base+'/#/mypage');await sp.waitForLoadState('networkidle');await sp.locator('[data-mtab=achievements]').click();
+ await sp.goto(base+'/#/mypage');await sp.waitForLoadState('networkidle');await sp.locator('.mypage-progress > summary').click();await sp.locator('.journey-details > summary').click();
  assert.match(await sp.locator('.achv-item.unlocked').first().innerText(),/地域デビュー/);
 
  // A closed activity keeps "cancel"; a cancelled one offers neither edit nor cancel.
@@ -66,11 +66,11 @@ const errors=[];
 
  // Two tabs: the stale one is offered reload/overwrite instead of an endless retry.
  const tabA=await pageFor(student),tabB=await pageFor(student);
- for(const t of [tabA,tabB]){await t.goto(base+'/#/mypage');await t.waitForLoadState('networkidle');}
- await tabA.locator('#pf_nickname, [name=nickname]').first().fill('タブA');await tabA.getByRole('button',{name:'登録情報を保存',exact:true}).click();await tabA.getByText('保存済み',{exact:true}).waitFor();
+ for(const t of [tabA,tabB]){await t.goto(base+'/#/mypage');await t.waitForLoadState('networkidle');await t.locator('[data-mtab=profile]').click();}
+ await tabA.locator('#pf_nickname, [name=nickname]').first().fill('タブA');await tabA.getByRole('button',{name:'登録情報を保存',exact:true}).click();await tabA.getByText('登録情報を保存しました',{exact:true}).waitFor();
  await tabB.locator('#pf_nickname, [name=nickname]').first().fill('タブB');await tabB.getByRole('button',{name:'登録情報を保存',exact:true}).click();
  await tabB.locator('#accountReload').waitFor();assert.equal(await tabB.locator('#accountRetry').count(),0);
- tabB.once('dialog',d=>d.accept());await tabB.locator('#accountOverwrite').click();await tabB.getByText('保存済み',{exact:true}).waitFor();
+ tabB.once('dialog',d=>d.accept());await tabB.locator('#accountOverwrite').click();await tabB.getByText('この画面の内容で保存しました',{exact:true}).waitFor();
  assert.equal((await ok('state',student)).state.profile.nickname,'タブB');
 
  // A failed catalogue load is reported, not shown as "no listings".

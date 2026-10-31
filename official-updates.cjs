@@ -7,7 +7,7 @@ function createOfficialUpdates({db,reader=readOfficialSource,schedule=true,clock
  function configuration(c){const d=JSON.parse(c.data);return {enabled:d.officialUpdatesEnabled===true,sourceURL:d.feedURL||d.links?.website||'',instagram:d.links?.instagram||''};}
  function snapshot(c){
   const cfg=configuration(c),row=one('SELECT * FROM live_official_updates WHERE community_id=?',c.id),data=cfg.enabled&&row?.source_url===cfg.sourceURL?row:null;
-  return {enabled:cfg.enabled,sourceURL:cfg.sourceURL,disclaimer:DISCLAIMER,verification:'unreviewed',instagram:{url:cfg.instagram,status:cfg.instagram?'not_connected':'not_set'},...(data?{...JSON.parse(data.content),fetchedAt:data.fetched_at,attemptedAt:data.attempted_at,error:data.error,stale:!!data.error||!data.fetched_at||clock()-Date.parse(data.fetched_at)>2*86400000}:{items:[],fetchedAt:null,attemptedAt:null,error:'',stale:false})};
+  return {enabled:cfg.enabled,sourceURL:cfg.sourceURL,disclaimer:DISCLAIMER,verification:'unreviewed',instagram:{url:cfg.instagram,status:cfg.instagram?'not_connected':'not_set'},...(data?{items:[],...JSON.parse(data.content),fetchedAt:data.fetched_at,attemptedAt:data.attempted_at,error:data.error,stale:!!data.error||!data.fetched_at||clock()-Date.parse(data.fetched_at)>2*86400000}:{items:[],fetchedAt:null,attemptedAt:null,error:'',stale:false})};
  }
  async function refresh(cid){
   const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
@@ -18,9 +18,13 @@ function createOfficialUpdates({db,reader=readOfficialSource,schedule=true,clock
   if(active.has(cid))fail(429,'この団体の情報を取得中です。');
   const last=one('SELECT * FROM live_official_updates WHERE community_id=?',cid);
   if(last?.source_url===cfg.sourceURL&&clock()-Date.parse(last.attempted_at)<300000)fail(429,'再取得は5分ほど空けてください。');
-  const controller=new AbortController();active.set(cid,controller);
-  const attempted=new Date(clock()).toISOString();let content={},fetchedAt=null,error='';
+  const controller=new AbortController();
+  const attempted=new Date(clock()).toISOString();let content={items:[]},fetchedAt=null,error='';
   if(last?.source_url===cfg.sourceURL){content=JSON.parse(last.content);fetchedAt=last.fetched_at;}
+  // 取得・解析中に実行環境が終了しても、次の起動で直ちに同じ取得を繰り返さない。
+  // 同じ情報元での直前の成功内容は、そのまま閲覧できるように保持する。
+  run('INSERT INTO live_official_updates VALUES(?,?,?,?,?,?) ON CONFLICT(community_id) DO UPDATE SET source_url=excluded.source_url,content=excluded.content,fetched_at=excluded.fetched_at,attempted_at=excluded.attempted_at,error=excluded.error',cid,cfg.sourceURL,JSON.stringify(content),fetchedAt,attempted,last?.source_url===cfg.sourceURL?last.error:'');
+  active.set(cid,controller);
   try{content=await reader(cfg.sourceURL,{signal:controller.signal});fetchedAt=new Date(clock()).toISOString();}
   catch(e){error=e.status===400?e.message:'情報元に接続できませんでした。公式ページでご確認ください。';}
   finally{active.delete(cid);}

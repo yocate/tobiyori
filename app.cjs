@@ -1,6 +1,7 @@
 // Tobiyori API, shared by the local Node server (tobiyori-server.cjs) and the Cloudflare Durable Object.
 // req/res follow the small subset of node:http used here; cloudflare/http-shim.js provides them on Workers.
 const crypto = require('node:crypto');
+const { rateLimitIp } = require('./rate-limit-ip.cjs');
 const { promisify } = require('node:util');
 const { createCommunityService } = require('./community-service.cjs');
 const { cleanPreferences } = require('./participation-conditions.cjs');
@@ -9,6 +10,22 @@ const scrypt = promisify(crypto.scrypt);
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 const failure = (status, message) => Object.assign(new Error(message), {status});
 function respond(res, status, body) { res.writeHead(status, {'Content-Type':'application/json; charset=utf-8'}); res.end(JSON.stringify(body)); }
+
+function validateProfile(profile) {
+  if (!profile || typeof profile !== 'object' || Array.isArray(profile) || Object.getPrototypeOf(profile) !== Object.prototype)
+    throw failure(400,'プロフィールの形式を確認してください。');
+  const arrays = {areas:[50,60],interests:[100,80],days:[7,10],transport:[20,60],excludedSkills:[30,40]};
+  for (const [key,[count,length]] of Object.entries(arrays)) {
+    const value=profile[key];
+    if(value!==undefined&&(!Array.isArray(value)||value.length>count||value.some(item=>typeof item!=='string'||item.length>length)))
+      throw failure(400,'プロフィールの選択項目を確認してください。');
+  }
+  for (const [key,max] of Object.entries({nickname:40,school:200,year:60,skills:3000}))
+    if(profile[key]!==undefined&&(typeof profile[key]!=='string'||profile[key].length>max))
+      throw failure(400,'プロフィールの文字数や入力形式を確認してください。');
+  for (const key of ['receiveOffers','receiveCompanyOffers','receiveCareerOffers','useSkillsMatching'])
+    if(profile[key]!==undefined&&typeof profile[key]!=='boolean')throw failure(400,'プロフィールの受取り・公開設定を確認してください。');
+}
 
 // Local scrypt. On Cloudflare the Worker hashes instead, so the single database object is never blocked by it.
 const localHasher = {
@@ -37,12 +54,27 @@ function createApp({ db, origins, hosts, secureCookies = false, hasher = localHa
   const communityService = createCommunityService({db,...community});
   const feedback = createFeedback({db,release});
   const limits = new Map();
-  function limited(key, max) {
+  let nextLimitSweep = 0;
+  function limitEntry(key, create=true) {
     const now = Date.now();
-    if (limits.size > 2000) for (const [k,v] of limits) if (v.until < now) limits.delete(k);
-    let v = limits.get(key);
-    if (!v || v.until < now) limits.set(key, v = { count: 0, until: now + 15*60*1000 });
-    return ++v.count > max;
+    if (limits.size >= 2000 && now >= nextLimitSweep) {
+      for (const [k,v] of limits) if (v.until <= now) limits.delete(k);
+      nextLimitSweep = now + 60000;
+    }
+    let entry = limits.get(key);
+    if(entry?.until<=now){limits.delete(key);entry=null;}
+    if(!entry&&create){
+      // 大量の異なる送信元でも、期限内の制限記録が無制限に増えないようにする。
+      if(limits.size>=10000)limits.delete(limits.keys().next().value);
+      limits.set(key,entry={count:0,until:now+15*60*1000});
+    }
+    // 参照した記録を末尾へ移し、上限時は最も古く使われた記録から退避する。
+    if(entry){limits.delete(key);limits.set(key,entry);}
+    return entry;
+  }
+  function limited(key, max) {
+    const entry=limitEntry(key);
+    return !entry || ++entry.count > max;
   }
   async function body(req) {
     if (!(req.headers['content-type'] || '').startsWith('application/json')) throw failure(415,'送信形式を確認してください。');
@@ -75,16 +107,19 @@ function createApp({ db, origins, hosts, secureCookies = false, hasher = localHa
       const requestURL = new URL(req.url,publicOrigin);
       const pathname = requestURL.pathname;
       if(!pathname.startsWith('/api/')) return false;
-      if(!['GET','POST','PUT'].includes(req.method)) throw failure(405,'この操作には対応していません。');
+      if(!['GET','POST','PUT','DELETE'].includes(req.method)) throw failure(405,'この操作には対応していません。');
       if(req.method !== 'GET' && !origins.includes(req.headers.origin)) throw failure(403,'アプリを開き直してから操作してください。');
       if(pathname === '/api/health') return respond(res,200,{ok:true,app:'tobiyori'});
       if(req.method === 'POST' && ['/api/register','/api/login'].includes(pathname)) {
-        if(limited('ip:'+req.socket.remoteAddress,60)) throw failure(429,'試行回数が多いため、15分後にお試しください。');
+        const ip = rateLimitIp(req.socket.remoteAddress);
+        if(limited('ip:'+ip,60)) throw failure(429,'試行回数が多いため、15分後にお試しください。');
         const input = await body(req);
         const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';
         const password = input.password;
         if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || typeof password !== 'string' || password.length < 8 || password.length > 128) throw failure(400,'メールアドレスと8〜128文字のパスワードを入力してください。');
-        if(limited(pathname+':'+email,15)) throw failure(429,'試行回数が多いため、15分後にお試しください。');
+        const loginLimitKey='login-failure:'+JSON.stringify([ip,email]);
+        if(pathname==='/api/register'&&limited(pathname+':'+email,15)) throw failure(429,'試行回数が多いため、15分後にお試しください。');
+        if(pathname==='/api/login'&&(limitEntry(loginLimitKey,false)?.count||0)>=15)throw failure(429,'試行回数が多いため、15分後にお試しください。');
         let user = db.prepare('SELECT * FROM accounts WHERE email=?').get(email);
         if(pathname === '/api/register') {
           const nickname = typeof input.nickname === 'string' ? input.nickname.trim() : '';
@@ -96,7 +131,8 @@ function createApp({ db, origins, hosts, secureCookies = false, hasher = localHa
           catch(e) { if(e.code?.includes('SQLITE_CONSTRAINT')) throw failure(409,'このメールアドレスは登録済みです。'); throw e; }
         } else {
           const valid = await hasher.verify(password,user?.password_hash || dummyHash,req);
-          if(!user || !valid) throw failure(401,'メールアドレスまたはパスワードが違います。');
+          if(!user || !valid){limited(loginLimitKey,15);throw failure(401,'メールアドレスまたはパスワードが違います。');}
+          limits.delete(loginLimitKey);
         }
         const old = userFor(req);
         if(old) db.prepare('DELETE FROM sessions WHERE token_hash=?').run(old.token_hash);
@@ -124,6 +160,7 @@ function createApp({ db, origins, hosts, secureCookies = false, hasher = localHa
           if(!Number.isInteger(input.revision) || !input.state || typeof input.state !== 'object' || Array.isArray(input.state)) throw failure(400,'保存内容を確認してください。');
           const allowed = ['profile','points','badges','achievements','trustChecklist','reviews','applications','messages','reports','orgQueue','orgPendingVerification','blocked','communityMedia'];
           const state = Object.fromEntries(allowed.filter(k=>Object.hasOwn(input.state,k)).map(k=>[k,input.state[k]]));
+          if(Object.hasOwn(state,'profile'))validateProfile(state.profile);
           const nickname=state.profile?.nickname;
           if(state.profile?.birthDate!==undefined&&state.profile.birthDate!==''){
             const value=state.profile.birthDate,today=new Date(Date.now()+9*3600000).toISOString().slice(0,10),d=new Date(String(value)+'T00:00:00Z');

@@ -47,8 +47,6 @@ export async function extractMedia(value, bucket, ownerId) {
   return { value: finish(tree), created };
 }
 
-export const deleteMedia = (bucket, keys) => Promise.all(keys.map(k => bucket.delete(`media/${k}`)));
-
 export async function serveMedia(request, bucket, ctx) {
   const url = new URL(request.url);
   const m = MEDIA_PATH.exec(url.pathname);

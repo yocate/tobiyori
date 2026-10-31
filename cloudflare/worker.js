@@ -3,12 +3,14 @@
 // TobiyoriDatabase (one SQLite Durable Object): runs app.cjs unchanged against Durable Object storage.
 import { DurableObject } from 'cloudflare:workers';
 import appModule from '../app.cjs';
+import ipModule from '../rate-limit-ip.cjs';
 import { DurableSqlite } from './do-sqlite.js';
 import { nodeRequest, nodeResponse } from './http-shim.js';
-import { extractMedia, deleteMedia, serveMedia } from './media.js';
+import { extractMedia, serveMedia } from './media.js';
 import csp from '../dist/csp.json';
 
 const { createApp, localHasher } = appModule;
+const { rateLimitIp } = ipModule;
 const INTERNAL = 'x-tobiyori-internal-';
 const MAX_BODY = 4 * 1024 * 1024;
 const ALARM_MS = 60_000;
@@ -16,6 +18,11 @@ const BACKUP_MS = 24 * 3600_000;
 const BACKUP_SKIP = new Set(['sessions', 'google_flows']);
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+const rateLimited = () => {
+  const response=json(429,{error:'試行回数が多いため、時間をおいてお試しください。'});
+  response.headers.set('Retry-After','60');
+  return response;
+};
 const secure = env => env.APP_ORIGIN.startsWith('https://');
 
 function contentSecurityPolicy(env) {
@@ -79,14 +86,23 @@ async function limited(limiter, key) {
 
 async function api(request, env, ctx) {
   const url = new URL(request.url);
-  const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+  const ip = rateLimitIp(request.headers.get('cf-connecting-ip') || 'unknown');
   const headers = new Headers();
   for (const [k, v] of request.headers) if (!k.startsWith(INTERNAL)) headers.set(k, v);
   const auth = request.method === 'POST' && ['/api/register', '/api/login'].includes(url.pathname);
-  if (await limited(auth ? env.AUTH_LIMITER : env.API_LIMITER, (auth ? 'auth:' : 'api:') + ip))
-    return json(429, { error: '試行回数が多いため、時間をおいてお試しください。' });
+  let owner=null;
+  if(auth){
+    if(await limited(env.AUTH_LIMITER,'auth:'+ip))return rateLimited();
+  }else{
+    // Cookieを変え続けても、セッション照会より先に回線全体の上限を適用する。
+    if(await limited(env.NETWORK_LIMITER,'network:'+ip))return rateLimited();
+    const cookie=headers.get('cookie')||'';
+    owner=cookie?await database(env).sessionUserId(cookie):null;
+    // 申告されたアカウントIDやCookie文字列ではなく、検証済みの利用者IDで分ける。
+    if(await limited(env.API_LIMITER,owner?'user:'+owner:'ip:'+ip))return rateLimited();
+  }
 
-  let body = null, created = [];
+  let body = null;
   if (!['GET', 'HEAD'].includes(request.method)) {
     if (Number(request.headers.get('content-length') || 0) > MAX_BODY) return json(413, { error: '保存する情報が大きすぎます。写真を減らしてください。' });
     body = await readBody(request);
@@ -94,7 +110,7 @@ async function api(request, env, ctx) {
     let input = null;
     if ((headers.get('content-type') || '').startsWith('application/json')) try { input = JSON.parse(body); } catch {}
     // Password hashing is CPU heavy: do it here so the single database object stays responsive.
-    if (input && typeof input.password === 'string' && input.password.length >= 8 && input.password.length <= 128) {
+    if (auth && input && typeof input.password === 'string' && input.password.length >= 8 && input.password.length <= 128) {
       if (url.pathname === '/api/register') headers.set(INTERNAL + 'password-hash', await localHasher.hash(input.password));
       if (url.pathname === '/api/login' && typeof input.email === 'string') {
         const stored = await database(env).credential(input.email.trim().toLowerCase());
@@ -103,9 +119,8 @@ async function api(request, env, ctx) {
     }
     if (input && body.includes('data:image/') && MEDIA_WRITES(request.method, url.pathname)) {
       if (headers.get('origin') !== new URL(env.APP_ORIGIN).origin) return json(403, { error: 'アプリを開き直してから操作してください。' });
-      const owner = await database(env).sessionUserId(headers.get('cookie') || '');
       if (!owner) return json(401, { error: 'ログインしてください。' });
-      try { ({ value: input, created } = await extractMedia(input, env.MEDIA, owner)); body = JSON.stringify(input); }
+      try { ({ value: input } = await extractMedia(input, env.MEDIA, owner)); body = JSON.stringify(input); }
       catch (e) { if (e.status) return json(e.status, { error: e.message }); throw e; }
     }
   }
@@ -123,8 +138,7 @@ async function api(request, env, ctx) {
       await new Promise(r => setTimeout(r, 100 * (attempt + 1)));
     }
   }
-  // Do not keep images uploaded for a write the database rejected.
-  if (created.length && response.status >= 400) ctx.waitUntil(deleteMedia(env.MEDIA, created));
+  // 画像キーは並行保存でも共有される。失敗した要求だけを理由に、参照確認なしで削除しない。
   return response;
 }
 

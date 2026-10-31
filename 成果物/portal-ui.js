@@ -1,5 +1,5 @@
 /* Separate participant and operator surfaces; server permissions remain authoritative. */
-const OPERATOR_VIEWS=['manage','admin','org','orgSignup','participants','reports'];
+const OPERATOR_VIEWS=['manage','admin','org','orgSignup','participants','reports','waitingManage','questions','feedback'];
 function canOperate(){return LIVE.dashboard?.role==='ADMIN'||!!LIVE.dashboard?.communities?.length;}
 function surfaceTarget(view,param){
   if(OPERATOR_APP&&view==='home')view='manage';
@@ -29,7 +29,7 @@ function renderSurfaceChrome(){
   const brand=document.querySelector('.brand');
   if(brand){brand.dataset.nav=OPERATOR_APP?'manage':'home';brand.setAttribute('aria-label',OPERATOR_APP?'トビヨリ 運営ホームへ':'トビヨリ ホームへ');}
   const actions=document.querySelector('.topbar-cta');
-  if(actions)actions.innerHTML=OPERATOR_APP?'<span class="operator-label">運営者用</span><a class="btn btn-ghost btn-sm" href="/#/home">利用者画面へ ↗</a>':'<button class="btn btn-ghost btn-sm participant-more" data-more aria-label="その他のメニュー">その他</button>';
+  if(actions)actions.innerHTML=OPERATOR_APP?'<span class="operator-label">運営者用</span><a class="btn btn-ghost btn-sm" href="/#/home">利用者画面へ ↗</a>':accountUser?`<button class="topbar-bell" data-nav="notifications" aria-label="お知らせ（未読 ${liveUnreadCount()}件）">${icon('bell')}${liveUnreadCount()?`<span class="topbar-badge">${Math.min(liveUnreadCount(),99)}</span>`:''}</button>`:'<button class="btn btn-secondary btn-sm" data-nav="login">ログイン</button>';
   actions?.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.nav));
 }
 function operatorHome(){

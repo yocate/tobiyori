@@ -51,7 +51,7 @@ const screenshotDir=path.join(__dirname,'.audit-20260930','serendipity');fs.mkdi
  browser=await chromium.launch({headless:true,...(process.env.TOBIYORI_BROWSER?{executablePath:process.env.TOBIYORI_BROWSER}:{channel:'chrome'}),args:['--disable-gpu']});
  const context=await browser.newContext({viewport:{width:1280,height:900}});await context.addCookies([{name:'tobiyori_session',value:student.cookie.split('=')[1],url:base}]);
  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(base+'/#/list');await page.getByRole('link',{name:'扉をあけてみる'}).click();
+ await page.goto(base+'/#/serendipity');await page.locator('.nearby-explore-extra > summary').click();
  await page.screenshot({path:path.join(screenshotDir,'door-desktop.png'),fullPage:true});
  await page.getByRole('button',{name:'知らない扉を開く',exact:true}).click();await page.locator('.serendipity-pick').waitFor();
  await page.getByText('紹介の理由と参加条件を確認する',{exact:true}).click();
@@ -77,7 +77,7 @@ const screenshotDir=path.join(__dirname,'.audit-20260930','serendipity');fs.mkdi
  const dashboard=await ok('live/dashboard',student);assert.equal(dashboard.applications.length,0);assert.equal(dashboard.follows.length,0);
  const noMore=await ok('live/serendipity/pick',student,{});assert(noMore.noCandidate);assert.equal(noMore.history.length,2);
  const state=await ok('state',student);await ok('state',student,{revision:state.revision,state:{...state.state,profile:{...profile,areas:['前橋市']}}},'PUT');
- await page.goto(base+'/#/list');await page.getByRole('link',{name:'扉をあけてみる'}).click();await page.getByText('紹介後に条件や登録情報が変わっています。現在は「よりみち発見」の条件に合いません。',{exact:true}).waitFor();
+ await page.goto(base+'/#/list');await page.goto(base+'/#/serendipity');await page.locator('.serendipity-pick').waitFor({state:'attached'});await page.locator('.nearby-explore-extra').evaluate(el=>el.open=true);await page.getByText('紹介後に条件や登録情報が変わっています。現在は「よりみち発見」の条件に合いません。',{exact:true}).waitFor();
  assert.equal((await ok('live/serendipity',student)).current.eligible,false);
  editDB(db=>db.prepare("UPDATE live_activities SET status='CLOSED' WHERE id=?").run(after.current.activity.id));assert.equal((await ok('live/serendipity',student)).current.activity,null);
  await stop();await start();const persisted=await ok('live/serendipity',student);assert.equal(persisted.history[1].feedback,'interested');assert.equal(persisted.history[1].awareness,'new');assert.equal(persisted.stats.sparks,1);

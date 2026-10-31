@@ -43,7 +43,7 @@ function placeFeedbackButton(){
  const tabs=document.getElementById('bottomTabs'),shown=tabs&&getComputedStyle(tabs).display!=='none'&&tabs.offsetHeight>0;
  document.documentElement.style.setProperty('--feedback-fab-bottom',(shown?tabs.offsetHeight+12:20)+'px');
 }
-const hideFeedbackButton=()=>{const typing=document.activeElement?.matches?.('input:not([type=checkbox]):not([type=radio]),textarea,select');document.body.classList.toggle('feedback-fab-hidden',!!typing||!!document.getElementById('modalRoot')?.childElementCount);};
+const hideFeedbackButton=()=>{const typing=document.activeElement?.matches?.('input:not([type=checkbox]):not([type=radio]),textarea,select');document.body.classList.toggle('feedback-fab-hidden',!!typing||!!document.getElementById('modalRoot')?.childElementCount);document.body.classList.toggle('chrome-input-active',!!typing);};
 document.addEventListener('focusin',hideFeedbackButton);document.addEventListener('focusout',()=>setTimeout(hideFeedbackButton,0));
 window.addEventListener('resize',()=>placeFeedbackButton());
 {const root=document.getElementById('modalRoot');if(root)new MutationObserver(hideFeedbackButton).observe(root,{childList:true});}
@@ -53,7 +53,7 @@ document.addEventListener('click',e=>{const b=e.target.closest?.('[data-feedback
 let FEEDBACK_ADMIN={loaded:false,loading:false,summary:null,list:null,filters:{status:'',category:'',page:'',q:''},error:''};
 const FEEDBACK_DEVICES={mobile:'スマホ',tablet:'タブレット',desktop:'PC'},FEEDBACK_ROLES={guest:'ゲスト',user:'利用者',organizer:'団体担当',admin:'運営'};
 // Operators read screen names, not routes; the route stays visible for exact filtering.
-const FEEDBACK_PAGE_NAMES={home:'ホーム',list:'活動を探す',regional:'地域コミュニティを探す',campus:'大学・サークルを探す',company:'企業を探す',map:'地図で探す',liveactivity:'活動の詳細',livecommunity:'団体の紹介',mypage:'マイページ',myactivity:'申込み・参加記録',notifications:'お知らせ',following:'フォロー中',saved:'保存した団体',serendipity:'よりみち発見',waiting:'よりみちラウンジ',guide:'ご利用ガイド',safety:'安心・安全',login:'ログイン',register:'新規登録',support:'相談の対応状況',offers:'オファー',manage:'運営ホーム',admin:'団体・審査',org:'募集管理',participants:'参加者対応',reports:'相談対応',feedback:'ご意見'};
+const FEEDBACK_PAGE_NAMES={home:'ホーム',list:'活動を探す',regional:'地域コミュニティを探す',campus:'大学・サークルを探す',company:'企業を探す',map:'地図で探す',liveactivity:'活動の詳細',livecommunity:'団体の紹介',mypage:'マイページ',myactivity:'申込み・参加記録',notifications:'お知らせ',following:'フォロー中',saved:'保存したコミュニティ',serendipity:'よりみち発見',waiting:'よりみちラウンジ',guide:'ご利用ガイド',safety:'安心・安全',login:'ログイン',register:'新規登録',support:'相談の対応状況',offers:'オファー',manage:'運営ホーム',admin:'団体・審査',org:'募集管理',participants:'参加者対応',reports:'相談対応',feedback:'ご意見'};
 const feedbackPageName=page=>{const key=String(page||'').replace(/^#\//,'').split('/')[0];return page?(FEEDBACK_PAGE_NAMES[key]||key||'ホーム'):'画面不明';};
 const feedbackQuery=()=>new URLSearchParams(Object.entries(FEEDBACK_ADMIN.filters).filter(([,v])=>v)).toString();
 async function loadFeedbackAdmin(){

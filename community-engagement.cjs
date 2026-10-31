@@ -27,6 +27,22 @@ function createCommunityEngagement({db,clock=Date.now}){
     const views=one(`SELECT COUNT(*) AS n FROM live_community_views s JOIN live_communities c ON c.id=s.community_id WHERE c.id=? AND s.day>=? AND s.day<=? AND ${eligible}`,cid,from,to).n;
     return {participants,reviews,saves,views,points:participants*WEIGHTS.participation+reviews*WEIGHTS.review+saves*WEIGHTS.save+views*WEIGHTS.view};
   }
+  // 一覧用は団体ごとの COUNT を繰り返さず、同じ条件で4種類を一括集計する。
+  function buzzAll(){
+    const {from,to}=window(),totals=new Map();
+    const queries=[
+      ['participants',"SELECT a.community_id AS cid,COUNT(*) AS n FROM live_applications p JOIN live_activities a ON a.id=p.activity_id WHERE p.status='DONE' GROUP BY a.community_id",[]],
+      ['reviews',"SELECT a.community_id AS cid,COUNT(*) AS n FROM live_reviews r JOIN live_activities a ON a.id=r.activity_id JOIN live_applications p ON p.activity_id=r.activity_id AND p.user_id=r.user_id WHERE p.status='DONE' GROUP BY a.community_id",[]],
+      ['saves',`SELECT c.id AS cid,COUNT(*) AS n FROM live_community_saves s JOIN live_communities c ON c.id=s.community_id WHERE ${eligible} GROUP BY c.id`,[]],
+      ['views',`SELECT c.id AS cid,COUNT(*) AS n FROM live_community_views s JOIN live_communities c ON c.id=s.community_id WHERE s.day>=? AND s.day<=? AND ${eligible} GROUP BY c.id`,[from,to]],
+    ];
+    for(const [key,sql,args] of queries)for(const row of db.prepare(sql).all(...args)){
+      if(!totals.has(row.cid))totals.set(row.cid,{participants:0,reviews:0,saves:0,views:0,points:0});
+      totals.get(row.cid)[key]=row.n;
+    }
+    for(const value of totals.values())value.points=value.participants*WEIGHTS.participation+value.reviews*WEIGHTS.review+value.saves*WEIGHTS.save+value.views*WEIGHTS.view;
+    return totals;
+  }
   function setSaved(cid,uid,saved){
     if(saved)run('INSERT OR IGNORE INTO live_community_saves VALUES(?,?,?)',cid,uid,new Date(clock()).toISOString());
     else run('DELETE FROM live_community_saves WHERE community_id=? AND user_id=?',cid,uid);
@@ -37,6 +53,6 @@ function createCommunityEngagement({db,clock=Date.now}){
     return !!run('INSERT OR IGNORE INTO live_community_views VALUES(?,?,?)',cid,uid,dayAt(clock())).changes;
   }
   function purgeExpired(){run('DELETE FROM live_community_views WHERE day<?',window().from);}
-  return {buzz,setSaved,recordView,purgeExpired};
+  return {buzz,buzzAll,setSaved,recordView,purgeExpired};
 }
 module.exports={createCommunityEngagement,WEIGHTS};

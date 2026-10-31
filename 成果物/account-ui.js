@@ -5,19 +5,21 @@ const LOCAL_APP = ['localhost','127.0.0.1'].includes(location.hostname);
 const OPERATOR_APP = location.pathname === '/operator.html';
 function escapeHtml(value){return campusEscape(value);}
 let accountUser = null, accountReady = false, accountRevision = 0;
-let pendingAccountState = null, accountSaving = null, accountError = '', accountEpoch = 0, accountConflict = false;
+let pendingAccountState = null, accountSaving = null, accountError = '', accountEpoch = 0, accountConflict = false, accountRetryUntil = 0;
 async function accountAPI(url, method='GET', data) {
   const headers=data?{'Content-Type':'application/json'}:{};
   if(accountUser && (['state','logout'].includes(url)||url.startsWith('live/')||url.startsWith('feedback/')))headers['X-Tobiyori-Account']=accountUser.id;
   const response = await fetch('/api/'+url, {method, credentials:'same-origin',cache:'no-store',headers,body:data?JSON.stringify(data):undefined});
   const result = await response.json();
-  if(!response.ok) throw Object.assign(new Error(result.error || '接続できませんでした。'),{status:response.status});
+  if(!response.ok){if(response.status===429)accountRetryUntil=Date.now()+Math.max(1,Number(response.headers.get('Retry-After'))||60)*1000;throw Object.assign(new Error(result.error || '接続できませんでした。'),{status:response.status});}
   return result;
 }
 function accountNotice() {
   const el=document.getElementById('accountBar'); if(!el)return;
+  el.hidden=!OPERATOR_APP&&ACCOUNT_SERVER&&accountReady&&!accountError&&!pendingAccountState&&!accountSaving;
+  if(el.hidden)return;
   const text = !ACCOUNT_SERVER ? 'アカウント機能を使うには、起動したアプリを開いてください。' : !accountReady ? 'アカウントを確認しています…' : accountUser ? `${accountUser.nickname} さん` : OPERATOR_APP?'運営者用アカウントでログインしてください。':'ログインすると、自分のマイページを保存できます。';
-  el.innerHTML=`<div>${escapeHtml(text)}${accountUser&&!OPERATOR_APP?`<span class="account-save-status" role="status">${accountError?escapeHtml(accountError):(pendingAccountState||accountSaving)?'変更を保存中…':'保存済み'}</span>`:''}</div><div class="account-bar-actions">${!ACCOUNT_SERVER?'<a class="btn btn-primary btn-sm" href="http://localhost:4177/">ログインできるアプリを開く</a>':!accountReady?'':accountUser?`<button class="btn btn-secondary btn-sm" data-account-nav="notifications" aria-label="お知らせ・未読 ${liveUnreadCount()}件">お知らせ${liveUnreadCount()?' ('+liveUnreadCount()+')':''}</button><button class="btn btn-ghost btn-sm" id="accountLogout">ログアウト</button>${accountError?(accountConflict?'<button class="btn btn-secondary btn-sm" id="accountReload">最新の内容を読み込む</button><button class="btn btn-ghost btn-sm" id="accountOverwrite">この画面の内容で上書き保存</button>':'<button class="btn btn-ghost btn-sm" id="accountRetry">保存を再試行</button>'):''}`:OPERATOR_APP?'<button class="btn btn-ghost btn-sm" data-account-nav="login">運営者ログイン</button>':'<button class="btn btn-ghost btn-sm" data-account-nav="login">ログイン</button><button class="btn btn-primary btn-sm" data-account-nav="register">新規登録</button>'}</div>`;
+  el.innerHTML=`<div>${escapeHtml(text)}${accountUser&&!OPERATOR_APP?`<span class="account-save-status" role="status">${accountError?escapeHtml(accountError):(pendingAccountState||accountSaving)?'変更を保存中…':'保存済み'}</span>`:''}</div><div class="account-bar-actions">${!ACCOUNT_SERVER?'<a class="btn btn-primary btn-sm" href="http://localhost:4177/">ログインできるアプリを開く</a>':!accountReady?'':accountUser?`${OPERATOR_APP?'<button class="btn btn-ghost btn-sm" id="accountLogout">ログアウト</button>':''}${accountError?(accountConflict?'<button class="btn btn-secondary btn-sm" id="accountReload">最新の内容を読み込む</button><button class="btn btn-ghost btn-sm" id="accountOverwrite">この画面の内容で上書き保存</button>':'<button class="btn btn-ghost btn-sm" id="accountRetry">保存を再試行</button>'):''}`:OPERATOR_APP?'<button class="btn btn-ghost btn-sm" data-account-nav="login">運営者ログイン</button>':'<button class="btn btn-ghost btn-sm" data-account-nav="login">ログイン</button><button class="btn btn-primary btn-sm" data-account-nav="register">新規登録</button>'}</div>`;
   el.querySelectorAll('[data-account-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.accountNav));
   el.querySelector('#accountLogout')?.addEventListener('click',logoutAccount);
   el.querySelector('#accountRetry')?.addEventListener('click',()=>flushAccount().catch(()=>{}));
@@ -72,7 +74,7 @@ async function logoutAccount() {
     await flushAccount();
     await accountAPI('logout','POST',{});
     accountEpoch++;accountUser=null;clearLivePrivate();DB=defaultStore();accountRevision=0;pendingAccountState=null;accountError='';
-    closeModal();mypageTab='profile';nav('home');accountNotice();toast('ログアウトしました');
+    closeModal();mypageTab='apps';nav('home');accountNotice();toast('ログアウトしました');
   } catch(e){
     if([401,409].includes(e.status) && (!(pendingAccountState||accountSaving) || window.confirm('ログイン状態が変わりました。未保存の変更を破棄してログイン画面へ戻りますか？'))){
       accountEpoch++;pendingAccountState=null;accountUser=null;clearLivePrivate();DB=defaultStore();accountRevision=0;accountError='';closeModal();nav('login');accountNotice();return;
@@ -80,12 +82,16 @@ async function logoutAccount() {
     toast('ログアウトできませんでした。'+e.message);if(button)button.disabled=false;
   }
 }
+function accountContinuation(){
+ if(!['login','register'].includes(current.view)||!current.param)return null;
+ try{const [view,param,...extra]=decodeURIComponent(current.param).split('/');return ['waiting','liveactivity'].includes(view)&&/^[a-zA-Z0-9_-]+$/.test(param||'')&&!extra.length?{view,param}:null;}catch{return null;}
+}
 function viewAccount(mode='login') {
   if(!ACCOUNT_SERVER)return `<div class="container section"><div class="card account-card"><h1>アカウントを使う</h1><p>「トビヨリを起動.cmd」を開いてから、下のボタンを押してください。</p><a class="btn btn-primary" href="http://localhost:4177/">アプリを開く</a><p class="hint">ファイルを直接開いた画面では、新規登録・ログインは利用できません。</p></div></div>`;
   if(!accountReady)return '<div class="container section" role="status">アカウントを確認しています…</div>';
-  const register=!OPERATOR_APP && mode==='register';
+  const register=!OPERATOR_APP && mode==='register',next=accountContinuation(),returnParam=next?encodeURIComponent(next.view+'/'+next.param):'';
   if(accountUser)return `<div class="container section"><div class="card account-card"><h1>ログインしています</h1><p>${escapeHtml(accountUser.nickname)} さん</p><button class="btn btn-primary" data-nav="${OPERATOR_APP?'manage':'mypage'}">${OPERATOR_APP?'運営ホームへ':'マイページへ'}</button></div></div>`;
-  return `<div class="container section"><div class="card account-card"><span class="account-kicker">TOBIYORI</span><h1>${OPERATOR_APP?'運営者ログイン':register?'新しい出会いを、ここから。':'おかえりなさい。'}</h1><p class="muted">${OPERATOR_APP?'運営者として指定されたアカウントでログインしてください。':register?'自分だけのマイページを作りましょう。':'ログインして、活動の続きを見てみましょう。'}</p>${OPERATOR_APP?'':`<div class="account-switch"><button class="${register?'':'selected'}" data-nav="login">ログイン</button><button class="${register?'selected':''}" data-nav="register">新規登録</button></div>`}
+  return `<div class="container section"><div class="card account-card"><span class="account-kicker">TOBIYORI</span><h1>${OPERATOR_APP?'運営者ログイン':register?'新しい出会いを、ここから。':'おかえりなさい。'}</h1><p class="muted">${OPERATOR_APP?'運営者として指定されたアカウントでログインしてください。':register?'自分だけのマイページを作りましょう。':'ログインして、活動の続きを見てみましょう。'}</p>${OPERATOR_APP?'':`<p class="account-mode-switch">${register?'すでにアカウントをお持ちですか？':'はじめて利用しますか？'} <button type="button" data-nav="${register?'login':'register'}" data-param="${escapeHtml(returnParam)}">${register?'ログインへ':'新規登録へ'}</button></p>`}${next?`<p class="account-return-note">${register?'登録':'ログイン'}後、${next.view==='waiting'?'選んだ活動のラウンジに戻って入室手続きを続けられます。':'選んだ活動に戻って申込みを続けられます。'}</p>`:''}
   <form id="accountForm" data-mode="${register?'register':'login'}">
     ${register?'<div class="field"><label for="accountNickname">ニックネーム</label><input id="accountNickname" name="nickname" autocomplete="nickname" required maxlength="40" placeholder="例：とびまる"><p class="hint">本名ではなく、活動で使う名前を入力してください。</p></div>':''}
     <div class="field"><label for="accountEmail">メールアドレス</label><input id="accountEmail" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"><p class="hint">メールアドレスは一般公開しません。</p></div>
@@ -100,13 +106,13 @@ function bindAccountForm() {
   show.onclick=()=>{const visible=pass.type==='password';pass.type=visible?'text':'password';const confirm=form.querySelector('#accountConfirm');if(confirm)confirm.type=pass.type;show.textContent=visible?'パスワードを隠す':'パスワードを表示';show.setAttribute('aria-pressed',String(visible));};
   form.onsubmit=async e=>{
     e.preventDefault();const error=form.querySelector('#accountFormError'),submit=form.querySelector('#accountSubmit');error.textContent='';
-    const register=form.dataset.mode==='register';
+    const register=form.dataset.mode==='register',next=accountContinuation();
     if(register && pass.value!==form.querySelector('#accountConfirm').value){error.textContent='確認用パスワードが一致しません。';return;}
     submit.disabled=true;submit.textContent=register?'登録しています…':'ログインしています…';
     try {
       const result=await accountAPI(form.dataset.mode,'POST',{email:form.querySelector('#accountEmail').value,password:pass.value,...(register?{nickname:form.querySelector('#accountNickname').value,consent:form.querySelector('#accountConsent').checked}:{})});
       accountEpoch++;clearLivePrivate();accountUser=result.user;accountReady=false;DB=defaultStore();pendingAccountState=null;
-      await loadAccountState();accountReady=true;await refreshLive(false);accountNotice();nav(OPERATOR_APP?'manage':'mypage');toast(register?'登録が完了しました':'ログインしました');
+      await loadAccountState();accountReady=true;await refreshLive(false);accountNotice();nav(OPERATOR_APP?'manage':next?.view||'mypage',OPERATOR_APP?null:next?.param);toast(register?'登録が完了しました':'ログインしました');
     }catch(e){accountUser=null;accountReady=true;accountNotice();error.textContent=e.message || '接続できませんでした。';submit.disabled=false;submit.textContent=register?'登録してはじめる':'ログイン';}
   };
 }

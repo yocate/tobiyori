@@ -7,6 +7,7 @@
 !/package-lock.json
 !/tobiyori-server.cjs
 !/community-service.cjs
+!/community-questions.cjs
 !/community-discovery-data.cjs
 !/community-engagement.cjs
 !/daily-visits.cjs

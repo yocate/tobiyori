@@ -5,8 +5,8 @@ let server;
 async function start(){server=spawn(process.execPath,['tobiyori-server.cjs'],{cwd:__dirname,env:{...process.env,TOBIYORI_PORT:'4188',TOBIYORI_DATA_DIR:dir},stdio:'pipe',windowsHide:true});let output='';server.stderr.on('data',chunk=>output+=chunk);server.on('error',e=>output+=e.message);for(let i=0;i<400;i++){try{if((await fetch(base+'/api/health')).ok)return;}catch{}await new Promise(r=>setTimeout(r,50));}throw Error('Test server not ready: '+output);}
 async function stop(){if(!server||server.exitCode!==null)return;const exited=new Promise(r=>server.once('exit',r));server.kill();await exited;}
 function editDB(fn){const db=new DatabaseSync(path.join(dir,'accounts.sqlite'));try{fn(db);}finally{db.close();}}
-async function api(route,user,body){const headers={Origin:base};if(user){headers.Cookie=user.cookie;headers['X-Tobiyori-Account']=user.id;}if(body)headers['Content-Type']='application/json';const r=await fetch(base+'/api/'+route,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')};}
-async function ok(route,user,body){const r=await api(route,user,body);assert(r.status<300,JSON.stringify({route,...r}));return r.data;}
+async function api(route,user,body,method){const headers={Origin:base};if(user){headers.Cookie=user.cookie;headers['X-Tobiyori-Account']=user.id;}if(body)headers['Content-Type']='application/json';const r=await fetch(base+'/api/'+route,{method:method||(body?'POST':'GET'),headers,body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')};}
+async function ok(route,user,body,method){const r=await api(route,user,body,method);assert(r.status<300,JSON.stringify({route,...r}));return r.data;}
 async function signup(name){const r=await api('register',null,{email:name+'@example.test',password:'local-workflow-test-123',nickname:name,consent:true});assert.equal(r.status,201);return {id:r.data.user.id,cookie:r.cookie.split(';')[0]};}
 (async()=>{try{
  await start();const operator=await signup('operator'),student=await signup('student'),peer=await signup('peer'),waiting=await signup('waiting');
@@ -41,13 +41,21 @@ async function signup(name){const r=await api('register',null,{email:name+'@exam
  const review=await ok('live/reviews/'+a.id,student,{rating:1,text:'初参加でしたが、活動の流れを丁寧に教えてもらいました。',anonymous:true});
  buzz=(await ok('live/catalog')).communities[0].buzz;assert.deepEqual(buzz,{participants:1,reviews:1,saves:0,views:0,points:40});
  const publicReviews=await ok('live/community-reviews/'+c.id);assert.equal(publicReviews.reviews[0].author,'匿名の参加者');assert(!JSON.stringify(publicReviews).includes(student.id));assert(!JSON.stringify(publicReviews).includes('student@example.test'));assert(!('user_id' in publicReviews.reviews[0]));
- await ok('live/reviews/'+a.id,student,{rating:5,text:'また参加したいです。交流できてよい経験になりました。',anonymous:false});
- assert.equal((await ok('live/catalog')).communities[0].buzz.points,40);assert.equal((await ok('live/reviews/'+a.id)).reviews[0].id,review.id);assert.equal((await ok('live/reviews/'+a.id)).reviews[0].author,'匿名の参加者');
+ assert.equal((await api('live/reviews/'+a.id,student,{rating:5,text:'重複投稿を防ぎます。',anonymous:true})).status,409);
+ await ok('live/reviews/'+a.id,student,{rating:5,text:'また参加したいです。交流できてよい経験になりました。',anonymous:false},'PUT');
+ assert.equal((await ok('live/catalog')).communities[0].buzz.points,40);assert.equal((await ok('live/reviews/'+a.id)).reviews[0].id,review.id);assert.equal((await ok('live/reviews/'+a.id)).reviews[0].author,'student');
  assert.equal((await api('live/reviews/'+a.id,waiting,{rating:5,text:'ほかの人として投稿できないことを確認します。',anonymous:true,user_id:student.id})).status,403);
- await ok('live/reviews/'+a.id+'/delete',waiting,{});assert.equal((await ok('live/reviews/'+a.id)).total,1);
- await ok('live/reviews/'+a.id+'/delete',student,{});assert.equal((await ok('live/catalog')).communities[0].buzz.points,30);
+ assert.equal((await api('live/reviews/'+a.id,waiting,undefined,'DELETE')).status,403);assert.equal((await ok('live/reviews/'+a.id)).total,1);
+ assert.equal((await api('live/reviews/'+a.id,peer,undefined,'DELETE')).status,403);
+ await ok('live/reviews/'+a.id,student,undefined,'DELETE');assert.equal((await ok('live/catalog')).communities[0].buzz.points,30);
  await ok('live/reviews/'+a.id,student,{rating:5,text:'初参加でも安心して交流することができました。',anonymous:true});
  await ok('live/applications/'+p2.id+'/complete',operator,{});await ok('live/reviews/'+a.id,peer,{rating:3,text:'地域の方と話せて、新しい活動を知ることができました。',anonymous:true});
+ const studentReview=(await ok('live/community-reviews/'+c.id)).reviews.find(r=>r.text.includes('初参加でも安心'));
+ const report=await ok('live/reports',peer,{communityId:c.id,activityId:a.id,reviewId:studentReview.id,kind:'通報',body:'投稿に不適切な表現があるため確認してください。'});
+ assert.equal((await api('live/reports',peer,{communityId:c.id,activityId:a.id,reviewId:studentReview.id,kind:'通報',body:'重複通報です。'})).status,409);
+ assert.equal((await api('live/reports',student,{communityId:c.id,activityId:a.id,reviewId:studentReview.id,kind:'通報',body:'自分の投稿です。'})).status,403);
+ assert.equal((await ok('live/reports',operator)).reports.find(r=>r.id===report.id).review_id,studentReview.id);
+ assert.equal((await ok('live/reports',peer)).reports.find(r=>r.id===report.id).review_excerpt,studentReview.text);
  assert.deepEqual((await ok('live/catalog')).communities[0].buzz,{participants:2,reviews:2,saves:0,views:0,points:80});
  await stop();await start();
  dash=await ok('live/dashboard',student);assert.equal(dash.applications[0].status,'DONE');assert.equal(dash.followedCommunities[0].id,c.id);assert.equal((await ok('live/activity-messages/'+a.id,peer)).messages.length,2);

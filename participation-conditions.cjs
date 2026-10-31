@@ -21,9 +21,13 @@ function conditionFields(input){
 }
 const format=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 function local(value){const date=new Date(value);if(!Number.isFinite(date.getTime()))return null;const parts=Object.fromEntries(format.formatToParts(date).map(p=>[p.type,p.value]));return {date:`${parts.year}-${parts.month}-${parts.day}`,time:`${parts.hour}:${parts.minute}`,day:['日','月','火','水','木','金','土'][new Date(Date.UTC(+parts.year,+parts.month-1,+parts.day)).getUTCDay()]};}
-function snapshot(a){const d=JSON.parse(a.data);return {startsAt:a.starts_at,endsAt:a.ends_at,...Object.fromEntries(['activityKind','participationScope','companyKind','companyRole','employmentType','workplace','workSchedule','selectionProcess','applicationURL','feeAmount','fees','activityCity','targetYears','highSchoolParticipation','requirements','location','transport','staff','insurance','risk','emergency','photoPolicy'].map(k=>[k,d[k]??(k==='targetYears'?[]:k==='feeAmount'?null:'')]))};}
-const labels={activityKind:'活動の種類',participationScope:'団体に所属していない方の参加',companyKind:'企業の募集区分',companyRole:'職種・体験内容',employmentType:'雇用形態',workplace:'勤務・実施場所',workSchedule:'勤務・実施時間',selectionProcess:'選考の流れ',applicationURL:'公式応募ページ',startsAt:'開始日時',endsAt:'終了日時',feeAmount:'参加費（円）',fees:'費用の補足',activityCity:'会場の市町村',targetYears:'対象学年',highSchoolParticipation:'高校生の参加',requirements:'参加条件',location:'集合場所',transport:'交通手段',staff:'担当者',insurance:'保険',risk:'危険性と対策',emergency:'緊急連絡先',photoPolicy:'写真撮影'};
-function difference(before,after,privateAccess=false){return Object.entries(labels).filter(([k])=>JSON.stringify(before[k])!==JSON.stringify(after[k])).map(([key,label])=>({key,label,before:!privateAccess&&['location','emergency'].includes(key)?'承認後に表示':before[key],after:!privateAccess&&['location','emergency'].includes(key)?'承認後に表示':after[key]}));}
+const labels={title:'活動名',capacity:'募集人数',activityKind:'活動の種類',participationScope:'団体に所属していない方の参加',companyKind:'企業の募集区分',companyRole:'職種・体験内容',employmentType:'雇用形態',workplace:'勤務・実施場所',workSchedule:'勤務・実施時間',selectionProcess:'選考の流れ',applicationURL:'公式応募ページ',startsAt:'開始日時',endsAt:'終了日時',deadline:'申込期限',feeAmount:'参加費（円）',fees:'費用の補足',remuneration:'報酬・謝礼',transportFee:'交通費の補助',activityCity:'会場の市町村',targetYears:'対象学年',highSchoolParticipation:'高校生の参加',purpose:'活動の目的',tasks:'具体的な作業',requirements:'参加条件',belongings:'持ち物',prohibited:'禁止事項',location:'集合場所',transport:'交通手段',parking:'駐車場',staff:'担当者',insurance:'保険',risk:'危険性と対策',emergency:'緊急連絡先',photoPolicy:'写真撮影',frequency:'開催頻度',genre:'活動ジャンル',beginner:'初参加歓迎',help:'おたすけ募集'};
+function snapshot(a){const d=JSON.parse(a.data);return {title:a.title,capacity:a.capacity,startsAt:a.starts_at,endsAt:a.ends_at,...Object.fromEntries(Object.keys(labels).filter(k=>!['title','capacity','startsAt','endsAt'].includes(k)).map(k=>[k,d[k]??(k==='targetYears'?[]:k==='feeAmount'?null:['beginner','help'].includes(k)?false:'')]))};}
+function difference(before,after,privateAccess=false){
+ // 旧版の保存履歴には追加項目がない。値が空だったと断定せず、記録がないことを示す。
+ const visible=(data,key)=>!privateAccess&&['location','emergency'].includes(key)?'承認後に表示':Object.hasOwn(data,key)?data[key]:'旧記録なし';
+ return Object.entries(labels).filter(([k])=>JSON.stringify(before[k])!==JSON.stringify(after[k])).map(([key,label])=>({key,label,before:visible(before,key),after:visible(after,key)}));
+}
 function evaluate(s,p={}){
  let preferences;try{preferences=cleanPreferences(p.participation||{});}catch{preferences={budget:null,from:'',until:''};}
  const start=local(s.startsAt),end=local(s.endsAt),rows=[];
@@ -46,18 +50,21 @@ function createParticipationConditions({db,notify,audit,activity,validForReview}
  CREATE TABLE IF NOT EXISTS live_condition_changes(id TEXT PRIMARY KEY,activity_id TEXT NOT NULL REFERENCES live_activities(id),before_data TEXT NOT NULL,after_data TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS live_condition_receipts(change_id TEXT NOT NULL REFERENCES live_condition_changes(id),application_id TEXT NOT NULL REFERENCES live_applications(id),user_id TEXT NOT NULL REFERENCES accounts(id),ack_at TEXT,PRIMARY KEY(change_id,application_id));
  CREATE INDEX IF NOT EXISTS live_condition_changes_activity ON live_condition_changes(activity_id,created_at);
- CREATE INDEX IF NOT EXISTS live_condition_receipts_user ON live_condition_receipts(user_id);`);
+ CREATE INDEX IF NOT EXISTS live_condition_receipts_user ON live_condition_receipts(user_id);
+ CREATE INDEX IF NOT EXISTS live_condition_receipts_application ON live_condition_receipts(application_id,ack_at);`);
  const one=(sql,...v)=>db.prepare(sql).get(...v),all=(sql,...v)=>db.prepare(sql).all(...v),run=(sql,...v)=>db.prepare(sql).run(...v);
  const pending=aid=>one('SELECT * FROM live_activity_change_requests WHERE activity_id=?',aid);
  const transaction=fn=>require('./tx.cjs').transaction(db,fn,'participation_change');
  function profile(uid){if(!one("SELECT name FROM sqlite_master WHERE type='table' AND name='workspaces'"))return {};try{return JSON.parse(one('SELECT content FROM workspaces WHERE user_id=?',uid)?.content||'{}').profile||{};}catch{return {};}}
- function latest(p){return one('SELECT c.*,r.ack_at FROM live_condition_changes c JOIN live_condition_receipts r ON r.change_id=c.id WHERE r.application_id=? AND c.created_at>=(SELECT created_at FROM live_applications WHERE id=r.application_id) ORDER BY c.rowid DESC LIMIT 1',p.id);}
- function required(p){const r=latest(p);return !!r&&!r.ack_at;}
+ const receiptHistory='SELECT c.*,r.ack_at FROM live_condition_changes c JOIN live_condition_receipts r ON r.change_id=c.id JOIN live_applications p ON p.id=r.application_id WHERE r.application_id=? AND c.created_at>=p.created_at';
+ function latest(p){return one(receiptHistory+' ORDER BY c.rowid DESC LIMIT 1',p.id);}
+ function required(p){return !!one(receiptHistory+' AND r.ack_at IS NULL LIMIT 1',p.id);}
  function summary(p,owned){
-  const waiting=!!pending(p.activity_id),r=latest(p);if(!r)return {pending:waiting};
-  if(owned)return {pending:waiting,changeId:r.id,ackAt:r.ack_at,needsConfirmation:!r.ack_at};
-  const before=JSON.parse(r.before_data),after=JSON.parse(r.after_data),prefs=profile(p.user_id);
-  return {pending:waiting,changeId:r.id,createdAt:r.created_at,ackAt:r.ack_at,needsConfirmation:!r.ack_at,differences:difference(before,after,['APPROVED','DONE'].includes(p.status)),beforeChecks:evaluate(before,prefs),checks:evaluate(after,prefs)};
+  const waiting=!!pending(p.activity_id),rows=all(receiptHistory+' ORDER BY c.rowid',p.id),r=rows.at(-1);if(!r)return {pending:waiting};
+  const firstUnconfirmed=rows.find(row=>!row.ack_at),needsConfirmation=!!firstUnconfirmed,ackAt=needsConfirmation?null:rows.reduce((last,row)=>row.ack_at>last?row.ack_at:last,'');
+  if(owned)return {pending:waiting,changeId:r.id,ackAt,needsConfirmation};
+  const before=JSON.parse((firstUnconfirmed||r).before_data),after=JSON.parse(r.after_data),prefs=profile(p.user_id);
+  return {pending:waiting,changeId:r.id,createdAt:r.created_at,ackAt,needsConfirmation,differences:difference(before,after,['APPROVED','DONE'].includes(p.status)),beforeChecks:evaluate(before,prefs),checks:evaluate(after,prefs)};
  }
  function propose(a,candidate,input,user){
   if(!a.published_at||!['PUBLISHED','CLOSED'].includes(a.status)||a.ends_at<=stamp()||one("SELECT 1 FROM live_applications WHERE activity_id=? AND status='DONE'",a.id))throw fail(409,'公開済みで、開催前・参加完了前の活動だけ変更できます。');
@@ -75,7 +82,7 @@ function createParticipationConditions({db,notify,audit,activity,validForReview}
   });return {ok:true,changeId};
  }
  function review(a,input,action,user){
-  const request=pending(a.id);if(!request)return false;
+  const request=pending(a.id);if(!request){if(input.changeId!==undefined)throw fail(409,'変更案はすでに処理されています。再読み込みしてください。');return false;}
   if(input.changeId!==request.id)throw fail(409,'変更案が更新されています。再読み込みしてください。');
   if(!['approve','return'].includes(action))throw fail(400,'変更案の操作を確認してください。');
   const next=JSON.parse(request.content);
@@ -106,8 +113,10 @@ function createParticipationConditions({db,notify,audit,activity,validForReview}
   const r=one('SELECT r.*,p.status,p.activity_id FROM live_condition_receipts r JOIN live_applications p ON p.id=r.application_id WHERE r.change_id=? AND r.user_id=?',changeId,user.id);
   if(!r)throw fail(404,'変更通知が見つかりません。');
   if(!['APPLIED','APPROVED'].includes(r.status)||pending(r.activity_id)||latest({id:r.application_id})?.id!==changeId)throw fail(409,'新しい変更内容と申込み状況を確認してください。');
-  run('UPDATE live_condition_receipts SET ack_at=COALESCE(ack_at,?) WHERE change_id=? AND user_id=?',stamp(),changeId,user.id);
-  audit(user,'activity_change_ack',r.activity_id,changeId);return {ok:true};
+  transaction(()=>{
+   run('UPDATE live_condition_receipts SET ack_at=COALESCE(ack_at,?) WHERE application_id=? AND user_id=? AND change_id IN (SELECT c.id FROM live_condition_changes c JOIN live_applications p ON p.id=? WHERE c.activity_id=p.activity_id AND c.created_at>=p.created_at AND c.rowid<=(SELECT rowid FROM live_condition_changes WHERE id=?))',stamp(),r.application_id,user.id,r.application_id,changeId);
+   audit(user,'activity_change_ack',r.activity_id,changeId);
+  });return {ok:true};
  }
  return {pending,summary,required,propose,review,acknowledge,snapshot,difference,clear:aid=>run('DELETE FROM live_activity_change_requests WHERE activity_id=?',aid)};
 }

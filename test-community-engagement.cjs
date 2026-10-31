@@ -5,8 +5,8 @@ const db=new DatabaseSync(':memory:');
 db.exec('PRAGMA foreign_keys=ON;CREATE TABLE accounts(id TEXT PRIMARY KEY,nickname TEXT);');
 const service=createCommunityService({db}),stamp=new Date().toISOString();
 const run=(sql,...args)=>db.prepare(sql).run(...args);
-async function api(route,uid,body){let result;try{await service.handle({req:{method:body?'POST':'GET',headers:{'x-tobiyori-account':uid}},res:{},url:new URL('http://localhost/api/live/'+route),user:uid?{id:uid}:null,readBody:async()=>body,respond:(_,status,data)=>result={status,data}});}catch(e){result={status:e.status||500,data:{error:e.message}};}return result;}
-async function ok(route,uid,body){const r=await api(route,uid,body);assert.equal(r.status,200,JSON.stringify(r));return r.data;}
+async function api(route,uid,body,method){let result;try{await service.handle({req:{method:method||(body?'POST':'GET'),headers:{'x-tobiyori-account':uid}},res:{},url:new URL('http://localhost/api/live/'+route),user:uid?{id:uid}:null,readBody:async()=>body,respond:(_,status,data)=>result={status,data}});}catch(e){result={status:e.status||500,data:{error:e.message}};}return result;}
+async function ok(route,uid,body,method){const r=await api(route,uid,body,method);assert.equal(r.status,200,JSON.stringify(r));return r.data;}
 const stats=async()=> (await ok('catalog')).communities.find(c=>c.id==='one').buzz;
 (async()=>{try{
  for(const u of ['owner','admin','student','other'])run('INSERT INTO accounts VALUES(?,?)',u,'PRIVATE_'+u);
@@ -39,7 +39,7 @@ const stats=async()=> (await ok('catalog')).communities.find(c=>c.id==='one').bu
  assert.equal((await stats()).points,42);
  assert.equal((await api('reviews/a','student',{rating:1,text:'活動に参加した感想を記録します。',anonymous:true})).status,201);
  assert.equal((await stats()).points,52);
- await ok('reviews/a','student',{rating:5,text:'活動に参加した感想を編集しました。',anonymous:true});
+ await ok('reviews/a','student',{rating:5,text:'活動に参加した感想を編集しました。',anonymous:true},'PUT');
  assert.equal((await stats()).points,52);
  await ok('reviews/a/delete','student',{});assert.equal((await stats()).points,42);
  const publicData=JSON.stringify(await ok('catalog'));assert(!publicData.includes('PRIVATE_'));assert(!publicData.includes('user_id'));assert(!publicData.includes('created_at'));

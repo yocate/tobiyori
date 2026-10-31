@@ -55,6 +55,7 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
  CREATE TABLE IF NOT EXISTS live_audit(id TEXT PRIMARY KEY,actor_id TEXT NOT NULL,action TEXT NOT NULL,target_id TEXT NOT NULL,note TEXT NOT NULL,created_at TEXT NOT NULL);`);
  db.exec(`CREATE TABLE IF NOT EXISTS live_community_changes(community_id TEXT PRIMARY KEY REFERENCES live_communities(id),content TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS live_reports(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES accounts(id),community_id TEXT NOT NULL REFERENCES live_communities(id),activity_id TEXT,kind TEXT NOT NULL,body TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'OPEN',reply TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+ CREATE TABLE IF NOT EXISTS live_review_reports(report_id TEXT PRIMARY KEY REFERENCES live_reports(id),review_id TEXT NOT NULL,reporter_id TEXT NOT NULL REFERENCES accounts(id),review_excerpt TEXT NOT NULL,UNIQUE(review_id,reporter_id));
  CREATE TABLE IF NOT EXISTS live_blocks(user_id TEXT NOT NULL REFERENCES accounts(id),community_id TEXT NOT NULL REFERENCES live_communities(id),PRIMARY KEY(user_id,community_id));
  CREATE TABLE IF NOT EXISTS live_form_drafts(user_id TEXT NOT NULL REFERENCES accounts(id),draft_key TEXT NOT NULL,content TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,draft_key));
  CREATE TABLE IF NOT EXISTS live_offers(id TEXT PRIMARY KEY,activity_id TEXT NOT NULL REFERENCES live_activities(id),user_id TEXT NOT NULL REFERENCES accounts(id),body TEXT NOT NULL,reason TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'NEW',created_at TEXT NOT NULL,UNIQUE(activity_id,user_id));
@@ -67,6 +68,18 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
  const officialUpdates=createOfficialUpdates({db,schedule,...sourceOptions});
  const dailyVisits=createDailyVisits({db});
  const one=(sql,...args)=>db.prepare(sql).get(...args),all=(sql,...args)=>db.prepare(sql).all(...args),run=(sql,...args)=>db.prepare(sql).run(...args);
+ db.exec(`CREATE INDEX IF NOT EXISTS live_notifications_user_read_created ON live_notifications(user_id,is_read,created_at);
+ CREATE INDEX IF NOT EXISTS live_applications_user ON live_applications(user_id);
+ CREATE INDEX IF NOT EXISTS live_communities_owner ON live_communities(owner_id);
+ CREATE INDEX IF NOT EXISTS live_activities_status_end ON live_activities(status,ends_at);`);
+ const operatorRoutes=['org','admin','orgSignup','manage','participants','reports','waitingManage','questions','feedback'];
+ function registeredMinor(uid){
+   if(!one("SELECT 1 FROM sqlite_master WHERE type='table' AND name='workspaces'"))return false;
+   let birth;try{birth=JSON.parse(one('SELECT content FROM workspaces WHERE user_id=?',uid)?.content||'{}').profile?.birthDate;}catch{return false;}
+   if(typeof birth!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(birth))return false;
+   const today=new Date(Date.now()+9*3600000).toISOString().slice(0,10),cutoff=String(Number(today.slice(0,4))-18)+today.slice(4);
+   return birth<=today&&birth>cutoff;
+ }
  const admin=user=>!!user&&one('SELECT role FROM account_roles WHERE user_id=?',user.id)?.role==='ADMIN';
  const adminInfo=cid=>JSON.parse(one('SELECT data FROM live_community_admin WHERE community_id=?',cid)?.data||'{}');
  const saveAdminInfo=(cid,data)=>run('INSERT INTO live_community_admin VALUES(?,?) ON CONFLICT(community_id) DO UPDATE SET data=excluded.data',cid,JSON.stringify(data));
@@ -77,6 +90,7 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
  const conditions=createParticipationConditions({db,notify,audit,activity,validForReview});
  const waitingRooms=require('./waiting-room.cjs').createWaitingRooms({db,notify,activity,blocked,conditions,isAdmin:admin});
  const questions=require('./activity-questions.cjs').createActivityQuestions({db,activity,blocked,notify,isAdmin:admin});
+ const communityQuestions=require('./community-questions.cjs').createCommunityQuestions({db,org,blocked,notify,isAdmin:admin});
  const serendipity=createSerendipity({db,activitiesForUser:user=>all("SELECT a.* FROM live_activities a JOIN live_communities c ON c.id=a.community_id WHERE a.status='PUBLISHED' AND c.status='VERIFIED' AND c.paused=0 ORDER BY a.starts_at")
    .filter(a=>!isCareerListing(JSON.parse(a.data))&&!blocked(user,a.community_id)&&!conditions.pending(a.id)&&org(a.community_id).owner_id!==user.id&&listingDeadline(a)>now()&&a.starts_at>now())
    .filter(a=>!one("SELECT 1 FROM live_applications WHERE activity_id=? AND user_id=? AND status<>'CANCELLED'",a.id,user.id)&&one("SELECT COUNT(*) AS n FROM live_applications WHERE activity_id=? AND status='APPROVED'",a.id).n<a.capacity)
@@ -126,10 +140,10 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
    for(const b of result.badges)run('INSERT OR IGNORE INTO live_participation_badges VALUES(?,?,?,?)',uid,b.key,JSON.stringify(b),now());
    return {participationBadges:all('SELECT data,earned_at FROM live_participation_badges WHERE user_id=? ORDER BY earned_at DESC,badge_key',uid).map(r=>({...JSON.parse(r.data),earnedAt:r.earned_at})),participationSummary:result.summary};
  }
- function publicReview(r){return {id:r.id,activityId:r.activity_id,communityId:r.community_id,activityTitle:r.activity_title,rating:r.rating,text:r.body,anonymous:true,author:'匿名の参加者',createdAt:r.created_at,updatedAt:r.updated_at};}
+ function publicReview(r){return {id:r.id,activityId:r.activity_id,communityId:r.community_id,activityTitle:r.activity_title,rating:r.rating,text:r.body,anonymous:!!r.anonymous,author:r.anonymous?'匿名の参加者':r.nickname||'参加者',createdAt:r.created_at,updatedAt:r.updated_at};}
  const reviewSelect="SELECT r.*,a.community_id,a.title AS activity_title,u.nickname FROM live_reviews r JOIN live_activities a ON a.id=r.activity_id JOIN accounts u ON u.id=r.user_id JOIN live_applications p ON p.activity_id=r.activity_id AND p.user_id=r.user_id AND p.status='DONE'";
- function publicOrg(c){const verification=one('SELECT checked_at FROM live_community_verifications WHERE community_id=?',c.id);return {id:c.id,name:c.name,city:c.city,...JSON.parse(c.data),status:c.status,paused:!!c.paused,autoPaused:!!c.auto_paused,confirmedAt:c.confirmed_at,updatedAt:c.updated_at,buzz:buzz(c.id),verification:verification?{checkedAt:verification.checked_at,checkedBy:'トビヨリ運営',items:['代表者の本人確認','活動の実態・目的','掲載同意']}:null};}
- function publicActivity(a,privateAccess=false){const d=JSON.parse(a.data);if(!privateAccess){delete d.location;delete d.emergency;}return {id:a.id,communityId:a.community_id,title:a.title,startsAt:a.starts_at,endsAt:a.ends_at,capacity:a.capacity,status:a.status,publishedAt:a.published_at,updatedAt:a.updated_at,changePending:!!conditions.pending(a.id),...d};}
+ function publicOrg(c,totals){const checkedAt=Object.hasOwn(c,'checked_at')?c.checked_at:one('SELECT checked_at FROM live_community_verifications WHERE community_id=?',c.id)?.checked_at;return {id:c.id,name:c.name,city:c.city,...JSON.parse(c.data),status:c.status,paused:!!c.paused,autoPaused:!!c.auto_paused,confirmedAt:c.confirmed_at,updatedAt:c.updated_at,buzz:totals instanceof Map?(totals.get(c.id)||{participants:0,reviews:0,saves:0,views:0,points:0}):buzz(c.id),verification:checkedAt?{checkedAt,checkedBy:'トビヨリ運営',items:['代表者の本人確認','活動の実態・目的','掲載同意']}:null};}
+ function publicActivity(a,privateAccess=false){const d=JSON.parse(a.data);if(!privateAccess){delete d.location;delete d.emergency;}return {id:a.id,communityId:a.community_id,title:a.title,startsAt:a.starts_at,endsAt:a.ends_at,capacity:a.capacity,status:a.status,publishedAt:a.published_at,updatedAt:a.updated_at,changePending:Object.hasOwn(a,'change_pending')?!!a.change_pending:!!conditions.pending(a.id),...d};}
  function listingDeadline(a){const d=JSON.parse(a.data);return d.deadline||(isRecruitment(d)?a.ends_at:a.starts_at);}
  function validForReview(a){
   const d=JSON.parse(a.data),c=JSON.parse(org(a.community_id).data),job=isRecruitment(d),company=c.sector==='company'||/企業|店舗/.test(c.type||'');
@@ -153,8 +167,9 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
    tidyDue();const parts=url.pathname.slice(10).split('/'),[resource,key,action]=parts;
    const send=(value,status=200)=>{respond(res,status,value);return true;};
    if(req.method==='GET'&&resource==='catalog'){
-     const communities=all("SELECT * FROM live_communities WHERE status='VERIFIED' AND paused=0 ORDER BY name").filter(c=>!blocked(user,c.id)).map(publicOrg);
-     const activities=all("SELECT a.* FROM live_activities a JOIN live_communities c ON c.id=a.community_id WHERE a.status='PUBLISHED' AND c.status='VERIFIED' AND c.paused=0 ORDER BY a.starts_at").filter(a=>!blocked(user,a.community_id)&&!conditions.pending(a.id)).map(a=>publicActivity(a));
+     const totals=engagement.buzzAll();
+     const communities=all("SELECT c.*,v.checked_at FROM live_communities c LEFT JOIN live_community_verifications v ON v.community_id=c.id WHERE c.status='VERIFIED' AND c.paused=0 AND NOT EXISTS (SELECT 1 FROM live_blocks b WHERE b.community_id=c.id AND b.user_id=?) ORDER BY c.name",user?.id||'').map(c=>publicOrg(c,totals));
+     const activities=all("SELECT a.*,0 AS change_pending FROM live_activities a JOIN live_communities c ON c.id=a.community_id WHERE a.status='PUBLISHED' AND c.status='VERIFIED' AND c.paused=0 AND NOT EXISTS (SELECT 1 FROM live_blocks b WHERE b.community_id=c.id AND b.user_id=?) AND NOT EXISTS (SELECT 1 FROM live_activity_change_requests q WHERE q.activity_id=a.id) ORDER BY a.starts_at",user?.id||'').map(a=>publicActivity(a));
      return send({communities,activities});
    }
    if(req.method==='GET'&&resource==='official-updates'){
@@ -172,12 +187,18 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      return send({reviews,total,nextOffset:offset+reviews.length<total?offset+reviews.length:null});
    }
    if(req.method==='GET'&&resource==='questions'&&key)return send(questions.list(key,user));
+   if(req.method==='GET'&&resource==='community-questions'&&key)return send(communityQuestions.list(key,user));
    if(!user)throw bad(401,'ログインしてください。');
    if(req.headers['x-tobiyori-account']!==user.id)throw bad(409,'別の画面でログイン状態が変わりました。再読み込みしてください。');
    if(resource==='questions'){
      if(req.method==='GET'&&!key)return send(questions.inbox(user));
      if(req.method==='POST'&&key){const input=await readBody(req);if(!action)return send(questions.ask(key,user,input));if(action==='answer')return send(questions.answer(key,user,input));if(action==='hide')return send(questions.hide(key,user));}
      throw bad(404,'質問の操作が見つかりません。');
+   }
+   if(resource==='community-questions'){
+     if(req.method==='GET'&&!key)return send(communityQuestions.inbox(user));
+     if(req.method==='POST'&&key){const input=await readBody(req);if(!action)return send(communityQuestions.ask(key,user,input));if(action==='answer')return send(communityQuestions.answer(key,user,input));if(action==='hide')return send(communityQuestions.hide(key,user));}
+     throw bad(404,'コミュニティへの質問の操作が見つかりません。');
    }
    if(resource==='waiting-room'){
      if(req.method==='GET'&&!key)return send({joinedActivityIds:waitingRooms.joinedFor(user)});
@@ -197,7 +218,8 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      const updates=await officialUpdates.refresh(key);audit(user,'official_source_refresh',key);return send({updates});
    }
    if(req.method==='GET'&&resource==='reports'){
-     const rows=admin(user)?all('SELECT * FROM live_reports ORDER BY created_at DESC'):all('SELECT * FROM live_reports WHERE user_id=? ORDER BY created_at DESC',user.id);
+     const base='SELECT r.*,rr.review_id,rr.review_excerpt FROM live_reports r LEFT JOIN live_review_reports rr ON rr.report_id=r.id';
+     const rows=admin(user)?all(base+' ORDER BY r.created_at DESC'):all(base+' WHERE r.user_id=? ORDER BY r.created_at DESC',user.id);
      return send({reports:rows.map(({user_id,...r})=>({...r,communityName:org(r.community_id).name}))});
    }
    if(req.method==='GET'&&resource==='drafts')return send({draft:one('SELECT content,updated_at FROM live_form_drafts WHERE user_id=? AND draft_key=?',user.id,key)||null});
@@ -211,7 +233,7 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      const followedCommunities=all('SELECT c.* FROM live_follows f JOIN live_communities c ON c.id=f.community_id WHERE f.user_id=? ORDER BY c.name',user.id).map(c=>c.status==='VERIFIED'&&!c.paused?{...publicOrg(c),available:true}:{id:c.id,name:'確認中・休止中のコミュニティ',available:false});
      const savedCommunities=all('SELECT c.* FROM live_community_saves s JOIN live_communities c ON c.id=s.community_id WHERE s.user_id=? ORDER BY s.created_at DESC,c.id',user.id).filter(c=>!blocked(user,c.id)).map(c=>c.status==='VERIFIED'&&!c.paused?{...publicOrg(c),available:true}:{id:c.id,name:'確認中・休止中のコミュニティ',available:false});
      const unreadRows=all('SELECT route,COUNT(*) AS n FROM live_notifications WHERE user_id=? AND is_read=0 GROUP BY route',user.id);
-     const unreadBySurface={operator:0,user:0};for(const n of unreadRows)unreadBySurface[['org','admin','orgSignup','manage','participants','reports'].includes(n.route.split('/')[0])?'operator':'user']+=n.n;
+     const unreadBySurface={operator:0,user:0};for(const n of unreadRows)unreadBySurface[operatorRoutes.includes(n.route.split('/')[0])?'operator':'user']+=n.n;
      const reviews=all(reviewSelect+' WHERE r.user_id=? ORDER BY r.created_at DESC,r.id DESC',user.id).map(publicReview);
      const done=applications.filter(p=>!p.owned&&p.status==='DONE');
      const genres=[...new Set(done.map(p=>p.activity.genre).filter(Boolean))];
@@ -233,8 +255,8 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      if(!admin(user))throw bad(403,'運営管理者専用です。');
      return send({communities:all("SELECT * FROM live_communities ORDER BY updated_at DESC").map(c=>{const change=one('SELECT content FROM live_community_changes WHERE community_id=?',c.id);return {...publicOrg(c),reviewNote:c.review_note,adminInfo:adminInfo(c.id),pendingChange:change?JSON.parse(change.content):null};}),activities:all("SELECT * FROM live_activities WHERE status='REVIEW' ORDER BY updated_at").map(a=>({...publicActivity(a,true),reviewNote:a.review_note})),activityChanges:all('SELECT q.*,a.title FROM live_activity_change_requests q JOIN live_activities a ON a.id=q.activity_id ORDER BY q.created_at').map(q=>({id:q.id,activityId:q.activity_id,title:q.title,createdAt:q.created_at,proposed:publicActivity(JSON.parse(q.content),true),differences:conditions.difference(conditions.snapshot(activity(q.activity_id)),conditions.snapshot(JSON.parse(q.content)),true)}))});
    }
-   if(req.method!=='POST')throw bad(405,'この操作には対応していません。');
-   const input=await readBody(req);
+   if(req.method!=='POST'&&!(resource==='reviews'&&key&&!action&&['PUT','DELETE'].includes(req.method)))throw bad(405,'この操作には対応していません。');
+   const input=req.method==='DELETE'?{}:await readBody(req);
    if(resource==='saved-communities'&&key&&!action){
      if(typeof input.saved!=='boolean')throw bad(400,'保存するかどうかを確認してください。');
      const c=org(key);
@@ -263,6 +285,10 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
        const week=new Date(Date.now()-7*86400000).toISOString();
        for(const row of candidates){
          let p;try{p=JSON.parse(row.content).profile||{};}catch{continue;}
+         if(!p||typeof p!=='object'||Array.isArray(p))continue;
+         if(!Array.isArray(p.areas))p.areas=[];
+         if(!Array.isArray(p.excludedSkills))p.excludedSkills=[];
+         if(typeof p.skills!=='string')p.skills='';
          if(p.receiveOffers!==true||row.user_id===user.id||blocked({id:row.user_id},c.id))continue;
          if((cd.sector==='company'||/企業|店舗/.test(cd.type||''))&&(isCareerListing(d)?p.receiveCareerOffers!==true:p.receiveCompanyOffers!==true))continue;
          if(interest&&!matchesCommunityOffer(p.interests,interest)||city&&!(p.areas||[]).includes(city))continue;
@@ -292,7 +318,18 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      if(key){if(!admin(user))throw bad(403,'運営者専用です。');const report=one('SELECT * FROM live_reports WHERE id=?',key);if(!report)throw bad(404,'相談が見つかりません。');if(!['OPEN','WORKING','RESOLVED'].includes(input.status))throw bad(400,'対応状況を選んでください。');const reply=text(input.reply||'',2000);run('UPDATE live_reports SET status=?,reply=?,updated_at=? WHERE id=?',input.status,reply,now(),key);notify(report.user_id,'相談・通報の対応状況が更新されました。','support');audit(user,'report_update',key,input.status);return send({ok:true});}
      const c=org(input.communityId);if(input.activityId&&activity(input.activityId).community_id!==c.id)throw bad(400,'対象を確認してください。');
      if(!['相談','通報','事故','変更依頼'].includes(input.kind))throw bad(400,'相談の種類を選んでください。');
-     const rid=id(),body=required(input.body,'相談内容',3000);run('INSERT INTO live_reports VALUES(?,?,?,?,?,?,\'OPEN\',\'\',?,?)',rid,user.id,c.id,input.activityId||null,input.kind,body,now(),now());notifyAdmins('新しい'+input.kind+'が届きました。');audit(user,'report_create',rid);return send({id:rid},201);
+     let review=null;
+     if(input.reviewId){
+       review=one(reviewSelect+' WHERE r.id=?',input.reviewId);
+       if(!review||review.community_id!==c.id||review.activity_id!==input.activityId||c.status!=='VERIFIED'||c.paused)throw bad(404,'口コミが見つかりません。');
+       if(review.user_id===user.id)throw bad(403,'自分の口コミは通報できません。');
+       if(input.kind!=='通報')throw bad(400,'口コミの通報として送信してください。');
+       if(one('SELECT 1 FROM live_review_reports WHERE review_id=? AND reporter_id=?',review.id,user.id))throw bad(409,'この口コミはすでに通報済みです。');
+     }
+     const rid=id(),body=required(input.body,'相談内容',3000);
+     run('INSERT INTO live_reports VALUES(?,?,?,?,?,?,\'OPEN\',\'\',?,?)',rid,user.id,c.id,input.activityId||null,input.kind,body,now(),now());
+     if(review)run('INSERT INTO live_review_reports VALUES(?,?,?,?)',rid,review.id,user.id,review.body.slice(0,300));
+     notifyAdmins('新しい'+input.kind+'が届きました。');audit(user,'report_create',rid);return send({id:rid},201);
    }
    if(resource==='blocks'){
      const c=org(key);if(c.owner_id===user.id)throw bad(400,'自分の担当団体はブロックできません。');
@@ -305,16 +342,20 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
    if(resource==='reviews'){
      activity(key);
      const existing=one('SELECT * FROM live_reviews WHERE activity_id=? AND user_id=?',key,user.id);
-     if(action==='delete'){
-       if(existing){run('DELETE FROM live_reviews WHERE id=? AND user_id=?',existing.id,user.id);audit(user,'review_delete',existing.id);}
+     if(!one("SELECT id FROM live_applications WHERE activity_id=? AND user_id=? AND status='DONE'",key,user.id))throw bad(403,'担当者が参加完了を確認した活動にのみ口コミを投稿できます。');
+     if(req.method==='DELETE'||action==='delete'){
+       if(!existing)throw bad(404,'自分の口コミが見つかりません。');
+       run('DELETE FROM live_reviews WHERE id=? AND user_id=?',existing.id,user.id);audit(user,'review_delete',existing.id);
        return send({ok:true});
      }
      if(action)throw bad(404,'口コミの操作が見つかりません。');
-     if(!one("SELECT id FROM live_applications WHERE activity_id=? AND user_id=? AND status='DONE'",key,user.id))throw bad(403,'担当者が参加完了を確認した活動にのみ口コミを投稿できます。');
+     if(req.method==='POST'&&existing)throw bad(409,'この活動の口コミは投稿済みです。編集を選んでください。');
+     if(req.method==='PUT'&&!existing)throw bad(404,'編集する口コミが見つかりません。');
      const body=required(input.text,'感想',1000);
      if(body.length<10||!Number.isInteger(input.rating)||input.rating<1||input.rating>5||typeof input.anonymous!=='boolean')throw bad(400,'満足度（1〜5）と10〜1,000文字の感想、匿名表示の設定を確認してください。');
      const rid=existing?.id||id(),timestamp=now();
-     run('INSERT INTO live_reviews VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(activity_id,user_id) DO UPDATE SET rating=excluded.rating,body=excluded.body,anonymous=excluded.anonymous,updated_at=excluded.updated_at',rid,key,user.id,input.rating,body,1,timestamp,timestamp);
+     if(existing)run('UPDATE live_reviews SET rating=?,body=?,anonymous=?,updated_at=? WHERE id=? AND user_id=?',input.rating,body,input.anonymous?1:0,timestamp,existing.id,user.id);
+     else run('INSERT INTO live_reviews VALUES(?,?,?,?,?,?,?,?)',rid,key,user.id,input.rating,body,input.anonymous?1:0,timestamp,timestamp);
      awardJourneyBadges(user.id);
      audit(user,existing?'review_update':'review_create',rid);
      return send({id:rid},existing?200:201);
@@ -384,10 +425,16 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      if(a.owner_id===user.id)throw bad(400,'自分が管理する募集には申し込めません。');
      if(!['見学','体験参加','継続参加の相談'].includes(input.kind))throw bad(400,'参加方法を選択してください。');
      if(['minor','guardian'].some(k=>input[k]!==undefined&&typeof input[k]!=='boolean'))throw bad(400,'保護者同意の入力形式を確認してください。');
-     if(input.minor===true&&input.guardian!==true)throw bad(400,'18歳未満の方は保護者の同意が必要です。');
+     const minor=input.minor===true||registeredMinor(user.id);
+     if(minor&&input.guardian!==true)throw bad(400,'18歳未満の方は保護者の同意が必要です。');
      const previous=one('SELECT id,status FROM live_applications WHERE activity_id=? AND user_id=?',key,user.id);
      if(previous&&previous.status!=='CANCELLED')throw bad(409,'この活動には申込み済みです。マイページを確認してください。');
-     const aid=previous?.id||id();if(previous)run("UPDATE live_applications SET kind=?,message=?,minor=?,guardian=?,status='APPLIED',created_at=? WHERE id=?",input.kind,text(input.message||'',2000),input.minor?1:0,input.guardian?1:0,now(),aid);else run('INSERT INTO live_applications VALUES(?,?,?,?,?,?,?,?,?)',aid,key,user.id,input.kind,text(input.message||'',2000),input.minor?1:0,input.guardian?1:0,'APPLIED',now());notify(a.owner_id,'「'+a.title+'」に新しい申込みがあります。','participants');audit(user,previous?'application_reapply':'application_create',aid);return send({id:aid},201);
+     const aid=previous?.id||id(),message=text(input.message||'',2000);
+     require('./tx.cjs').transaction(db,()=>{
+       if(previous){run('DELETE FROM live_condition_receipts WHERE application_id=?',aid);run("UPDATE live_applications SET kind=?,message=?,minor=?,guardian=?,status='APPLIED',created_at=? WHERE id=?",input.kind,message,minor?1:0,input.guardian?1:0,now(),aid);}
+       else run('INSERT INTO live_applications VALUES(?,?,?,?,?,?,?,?,?)',aid,key,user.id,input.kind,message,minor?1:0,input.guardian?1:0,'APPLIED',now());
+       notify(a.owner_id,'「'+a.title+'」に新しい申込みがあります。','participants');audit(user,previous?'application_reapply':'application_create',aid);
+     },'application_submit');return send({id:aid},201);
    }
    if(resource==='applications'){
      const p=application(key,user),a=activity(p.activity_id);
@@ -401,7 +448,8 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      if(action==='approve'){
        if(conditions.pending(a.id)||conditions.required(p))throw bad(409,'活動の変更確認と、参加者による変更内容の確認をお待ちください。');
        if(a.community_status!=='VERIFIED'||a.paused||a.ends_at<=now()||a.status!=='PUBLISHED')throw bad(400,'公開中の募集のみ承認できます。');
-       if(p.minor&&input.guardianChecked!==true)throw bad(400,'保護者同意の確認が必要です。');
+       if(!p.minor&&registeredMinor(p.user_id))throw bad(400,'登録情報が18歳未満です。参加者に、保護者同意を確認して再申込みするよう案内してください。');
+       if(p.minor&&(!p.guardian||input.guardianChecked!==true))throw bad(400,'保護者同意の確認が必要です。');
        if(one("SELECT COUNT(*) AS n FROM live_applications WHERE activity_id=? AND status IN ('APPROVED','DONE')",a.id).n>=a.capacity)throw bad(409,'募集人数の上限です。');
      }
      if(action==='complete'&&a.ends_at>now())throw bad(400,'活動終了後に完了を記録してください。');
@@ -426,7 +474,7 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      if(input.id){const result=run('UPDATE live_notifications SET is_read=1 WHERE id=? AND user_id=?',text(input.id,100),user.id);if(!result.changes)throw bad(404,'お知らせが見つかりません。');}
      else if(input.surface){
        if(!['operator','user'].includes(input.surface))throw bad(400,'お知らせの種類が正しくありません。');
-       const condition="(route='org' OR route='admin' OR route='participants' OR route='manage' OR route='orgSignup' OR route='reports' OR route LIKE 'org/%' OR route LIKE 'admin/%' OR route LIKE 'participants/%' OR route LIKE 'manage/%' OR route LIKE 'orgSignup/%' OR route LIKE 'reports/%')";
+       const condition='('+operatorRoutes.map(route=>`(route='${route}' OR route LIKE '${route}/%')`).join(' OR ')+')';
        run('UPDATE live_notifications SET is_read=1 WHERE user_id=? AND '+(input.surface==='operator'?'':'NOT ')+condition,user.id);
      }
      else run('UPDATE live_notifications SET is_read=1 WHERE user_id=?',user.id);
@@ -451,7 +499,7 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      }else if(input.type==='activity'){
        if(conditions.review(activity(key),{...input,note},action,user))return send({ok:true});
        const a=activity(key);if(action==='approve'){validForReview(a);if(a.status!=='REVIEW'||a.community_status!=='VERIFIED'||a.paused)throw bad(400,'団体と募集の確認状態を見直してください。');run("UPDATE live_activities SET status='PUBLISHED',published_at=?,review_note=?,updated_at=? WHERE id=?",now(),note,now(),key);for(const f of all('SELECT user_id FROM live_follows WHERE community_id=?',a.community_id))notify(f.user_id,'フォロー中の団体の募集：「'+a.title+'」','liveactivity/'+a.id);}
-       else if(action==='return')run("UPDATE live_activities SET status='DRAFT',review_note=?,updated_at=? WHERE id=?",note,now(),key);else throw bad(400,'操作を確認してください。');
+       else if(action==='return'){if(a.status!=='REVIEW')throw bad(409,'募集の審査はすでに処理されています。再読み込みしてください。');const changed=run("UPDATE live_activities SET status='DRAFT',review_note=?,updated_at=? WHERE id=? AND status='REVIEW'",note,now(),key);if(!changed.changes)throw bad(409,'募集の状況が変わりました。再読み込みしてください。');}else throw bad(400,'操作を確認してください。');
        notify(a.owner_id,'「'+a.title+'」の審査結果：'+note,'org');
      }else throw bad(400,'対象を確認してください。');
      audit(user,'review_'+input.type+'_'+action,key,note);return send({ok:true});
