@@ -24,7 +24,7 @@ const errors=[];
  editDB(db=>db.prepare("INSERT INTO account_roles VALUES(?,'ADMIN')").run(operator.id));
  const cid=(await ok('live/communities',operator,{name:'検証コミュニティ',city:'高崎市',type:'地域団体',intro:'実在しない検証用団体',adminInfo:{consentConfirmed:true}})).id;
  await ok('live/review/'+cid+'/approve',operator,{type:'community',note:'検証',identityChecked:true});
- const open=await publish(operator,cid),members=await publish(operator,cid,{title:'メンバー限定の練習会',participationScope:'members'});
+ const open=await publish(operator,cid,{activityCity:'<b id="injected">高崎市</b>'}),members=await publish(operator,cid,{title:'メンバー限定の練習会',participationScope:'members'});
  const {chromium}=require(process.env.TOBIYORI_PLAYWRIGHT||'playwright');
  browser=await chromium.launch({headless:true,...(process.env.TOBIYORI_BROWSER?{executablePath:process.env.TOBIYORI_BROWSER}:{channel:'chrome'})});
 
@@ -42,6 +42,8 @@ const errors=[];
  await sp.waitForURL('**/#/myactivity');await sp.locator('#liveApplyForm').waitFor({state:'detached'});
  assert.equal((await api('live/apply/'+members,stranger,{kind:'体験参加',year:'大学1年生'})).status,400);
  await applyFrom(open);assert.equal(await sp.locator('#liveApplyForm [name=memberConfirmed]').count(),0);await sp.locator('.modal-close').click();
+ // 主催者が入力した会場名は文字として表示され、HTMLとして解釈されない
+ assert.equal(await sp.locator('#injected').count(),0);assert.match(await sp.locator('.activity-summary').innerText(),/<b id="injected">高崎市<\/b>/);
 
  // Achievements follow the real application, not the sample counters.
  await sp.goto(base+'/#/mypage');await sp.waitForLoadState('networkidle');await sp.locator('[data-mtab=achievements]').click();
