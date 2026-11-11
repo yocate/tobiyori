@@ -319,6 +319,24 @@ function createCommunityService({db,sourceOptions={},schedule=true,tidyEveryMs=0
      audit(user,existing?'review_update':'review_create',rid);
      return send({id:rid},existing?200:201);
    }
+   // 表計算ソフトから貼り付けた団体一覧をまとめて「確認待ち」で登録する。公開は従来どおり1件ずつ本人確認・掲載同意を確認してから。
+   if(resource==='community-import'&&!key){
+     if(!admin(user))throw bad(403,'団体の一括登録はアプリの運営者が行います。');
+     const rows=input.rows;if(!Array.isArray(rows)||!rows.length||rows.length>300)throw bad(400,'登録する団体を1〜300件で指定してください。');
+     const created=[],skipped=[],errors=[],seen=new Set();
+     rows.forEach((row,i)=>{
+       const line=Number.isInteger(row?.line)?row.line:i+1,label=typeof row?.name==='string'?row.name.slice(0,100):'';
+       try{
+         if(!row||typeof row!=='object'||Array.isArray(row))throw bad(400,'行の形式を確認してください。');
+         const name=required(row.name,'団体名',100),city=required(row.city,'市町村',60),dupKey=name+'\n'+city;
+         if(seen.has(dupKey)||one('SELECT 1 FROM live_communities WHERE name=? AND city=?',name,city)){skipped.push({line,name,message:'同じ団体名・市町村がすでに登録されています。'});return;}
+         const d=communityData({type:row.type,intro:row.intro,university:row.university,genres:row.genres,schedule:row.schedule,audience:row.audience,links:row.links}),privateData=adminCommunityData({representative:row.representative,email:row.email,source:row.source,notes:row.notes});
+         const cid=id();run('INSERT INTO live_communities(id,owner_id,name,city,data,confirmed_at,updated_at) VALUES(?,?,?,?,?,?,?)',cid,user.id,name,city,JSON.stringify(d),now(),now());
+         saveAdminInfo(cid,privateData);seen.add(dupKey);created.push({line,id:cid,name});
+       }catch(e){if(!e.status)throw e;errors.push({line,name:label,message:e.message});}
+     });
+     audit(user,'community_import',String(created.length));return send({created,skipped,errors},created.length?201:200);
+   }
    if(resource==='communities'){
      if(!key){
        if(!admin(user))throw bad(403,'団体の登録はアプリの運営者が行います。');
