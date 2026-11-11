@@ -149,11 +149,58 @@ function viewLivePage(){
  if(current.view==='admin')return liveReviewPage();
 }
 function liveField(name,label,value='',type='text',required=false){return `<div class="field"><label for="lf_${name}">${label}</label>${type==='textarea'?`<textarea id="lf_${name}" name="${name}" rows="3" maxlength="3000" ${required?'required':''}>${escapeHtml(value)}</textarea>`:`<input id="lf_${name}" name="${name}" type="${type}" value="${escapeHtml(value)}" ${required?'required':''} ${type==='number'?'min="1" max="500"':''}>`}</div>`;}
+// 表計算ソフトから貼り付けた団体一覧を読み取り、まとめて「確認待ち」で登録する（運営者専用）
+const LIVE_IMPORT_COLUMNS={name:['団体名','サークル名','名称','名前'],city:['市町村','主な活動市町村','活動市町村','地域'],type:['団体の種類','種類','種別'],intro:['紹介文','活動内容','紹介','説明'],university:['大学','大学名','所属大学'],genres:['ジャンル','活動ジャンル','分野'],schedule:['活動日時','活動日','日時'],audience:['対象','対象者'],website:['ホームページ','HP','URL','ウェブサイト'],instagram:['Instagram','インスタ','インスタグラム'],x:['X','Twitter','ツイッター'],source:['情報の出典','出典','情報源'],representative:['代表者','代表者名','担当者'],email:['メールアドレス','メール'],notes:['メモ','備考']};
+const LIVE_IMPORT_REQUIRED=['name','city','type','intro'];
+function liveImportCells(text){
+ const s=String(text||'').replace(/\r\n?/g,'\n'),delim=s.split('\n')[0].includes('\t')?'\t':',',rows=[];let row=[],cell='',quoted=false;
+ for(let i=0;i<s.length;i++){const ch=s[i];if(quoted){if(ch==='"'){if(s[i+1]==='"'){cell+='"';i++;}else quoted=false;}else cell+=ch;}else if(ch==='"'&&cell==='')quoted=true;else if(ch===delim){row.push(cell);cell='';}else if(ch==='\n'){row.push(cell);rows.push(row);row=[];cell='';}else cell+=ch;}
+ row.push(cell);rows.push(row);return rows.map((cells,i)=>({line:i+1,cells:cells.map(v=>v.trim())})).filter(r=>r.cells.some(Boolean));
+}
+function liveImportLink(value,site){const v=String(value||'').trim();if(!v||/^https?:\/\//i.test(v))return v;const handle=v.replace(/^@/,'');return site&&/^[A-Za-z0-9._]{1,30}$/.test(handle)?site+handle:v;}
+function parseLiveImport(text){
+ const lines=liveImportCells(text);if(lines.length<2)return {rows:[],missing:[],empty:true};
+ const norm=v=>String(v).replace(/[\s（）()]|必須/g,'').toLowerCase(),header=lines[0].cells.map(norm),at={};
+ for(const [k,names] of Object.entries(LIVE_IMPORT_COLUMNS)){const i=header.findIndex(h=>names.some(n=>norm(n)===h));if(i>=0)at[k]=i;}
+ const get=(r,k)=>at[k]===undefined?'':(r.cells[at[k]]||''),city=v=>GUNMA_MUNICIPALITIES.includes(v)?v:(GUNMA_MUNICIPALITIES.find(m=>v&&m.startsWith(v))||v);
+ const rows=lines.slice(1).map(r=>{const links={};for(const [k,site] of [['website',''],['instagram','https://www.instagram.com/'],['x','https://x.com/']]){const v=liveImportLink(get(r,k),site);if(v)links[k]=v;}
+  return {line:r.line,name:get(r,'name'),city:city(get(r,'city')),type:get(r,'type'),intro:get(r,'intro'),university:get(r,'university'),genres:[...new Set(get(r,'genres').split(/[、,，\/／]/).map(v=>v.trim()).filter(Boolean))],schedule:get(r,'schedule'),audience:get(r,'audience'),links,source:get(r,'source'),representative:get(r,'representative'),email:get(r,'email'),notes:get(r,'notes')};});
+ return {rows,missing:LIVE_IMPORT_REQUIRED.filter(k=>at[k]===undefined).map(k=>LIVE_IMPORT_COLUMNS[k][0])};
+}
+function liveImportRowProblem(row){const blank=LIVE_IMPORT_REQUIRED.filter(k=>!row[k]).map(k=>LIVE_IMPORT_COLUMNS[k][0]);return blank.length?blank.join('・')+'が空欄です':'';}
+function liveCommunityImportHTML(){
+ const header=Object.values(LIVE_IMPORT_COLUMNS).map(n=>n[0]).join('、');
+ return `<details class="card live-card live-import"><summary><strong>表からまとめて登録する</strong>（Excel・スプレッドシートから貼り付け）</summary>
+ <p>1行目に見出し、2行目から1団体を1行で貼り付けます。必須の列は「団体名」「市町村」「団体の種類」「紹介文」です。読み取る見出しは ${escapeHtml(header)} です。ジャンルは読点（、）で区切ります。InstagramとXはアカウント名だけでも入力できます。</p>
+ <p>登録した団体は「確認待ち」になります。公開する前に、運営管理で1団体ずつ代表者と掲載同意を確認してください。同じ団体名・市町村の団体は登録しません。</p>
+ <p><button type="button" class="btn btn-ghost btn-sm" data-live-import-template>見出し行をコピー</button></p>
+ <div class="field"><label for="liveImportText">団体の一覧（300件まで）</label><textarea id="liveImportText" rows="8" placeholder="団体名	市町村	団体の種類	紹介文"></textarea></div>
+ <div class="live-import-preview" aria-live="polite"></div>
+ <p class="live-form-error live-import-error" role="alert"></p>
+ <button type="button" class="btn btn-primary" data-live-import-submit disabled>確認待ちで登録</button></details>`;
+}
+function bindLiveCommunityImport(){
+ const box=document.querySelector('.live-import');if(!box)return;
+ const area=box.querySelector('#liveImportText'),preview=box.querySelector('.live-import-preview'),err=box.querySelector('.live-import-error'),submit=box.querySelector('[data-live-import-submit]');let parsed={rows:[],missing:[]};
+ const list=items=>items.map(r=>`<li>${r.line}行目 ${escapeHtml(r.name||'（団体名なし）')}${r.message?'：'+escapeHtml(r.message):''}</li>`).join('');
+ const update=()=>{err.textContent='';parsed=parseLiveImport(area.value);const bad=parsed.rows.map(r=>({...r,message:liveImportRowProblem(r)})).filter(r=>r.message),ok=parsed.rows.length-bad.length;
+  if(parsed.empty){preview.innerHTML=area.value.trim()?'<p>見出しの行と、団体の行を1行以上貼り付けてください。</p>':'';submit.disabled=true;return;}
+  if(parsed.missing.length){preview.innerHTML=`<p>見出しに「${parsed.missing.map(escapeHtml).join('」「')}」の列が見つかりません。1行目の見出しを確認してください。</p>`;submit.disabled=true;return;}
+  preview.innerHTML=`<p><strong>${ok}件</strong>を登録できます。${bad.length?`次の${bad.length}件は空欄があるため登録しません。`:''}</p>${bad.length?`<ul>${list(bad)}</ul>`:''}${parsed.rows.length>300?'<p>一度に登録できるのは300件までです。表を分けて貼り付けてください。</p>':''}`;
+  submit.disabled=!ok||parsed.rows.length>300;submit.textContent=ok?ok+'件を確認待ちで登録':'確認待ちで登録';};
+ area.addEventListener('input',update);
+ box.querySelector('[data-live-import-template]').onclick=async()=>{try{await navigator.clipboard.writeText(Object.values(LIVE_IMPORT_COLUMNS).map(n=>n[0]).join('\t'));toast('見出し行をコピーしました。表の1行目に貼り付けてください');}catch{err.textContent='コピーできませんでした。案内文の見出しを表の1行目に入力してください。';}};
+ submit.onclick=async()=>{const rows=parsed.rows.filter(r=>!liveImportRowProblem(r));if(!rows.length)return;submit.disabled=true;err.textContent='';
+  try{const result=await accountAPI('live/community-import','POST',{rows});await refreshLive(false);area.value='';
+   preview.innerHTML=`<p><strong>${result.created.length}件</strong>を確認待ちで登録しました。運営管理から1団体ずつ確認して公開してください。</p>${result.skipped.length?`<p>登録済みのため見送った団体：</p><ul>${list(result.skipped)}</ul>`:''}${result.errors.length?`<p>内容を直して貼り付け直す団体：</p><ul>${list(result.errors)}</ul>`:''}`;
+   submit.textContent='確認待ちで登録';toast(result.created.length+'件の団体を確認待ちで登録しました');}
+  catch(e){err.textContent=e.message;submit.disabled=false;}};
+}
 function liveAdminRegistration(cid){
  if(LIVE.dashboard?.role!=='ADMIN')return liveShell('団体の登録について','<div class="card live-card"><h2>団体の登録は、アプリの運営者が行います</h2><p>運営者が団体に活動内容を伺い、情報を確認して掲載します。利用者・団体向けの新規登録フォームはありません。</p><button class="btn btn-secondary" data-nav="live">掲載中の活動を見る</button></div>');
  const c=cid?LIVE.review?.communities.find(c=>c.id===cid):{};
  if(!c)return liveShell('団体情報','<p>団体情報を取得できませんでした。運営管理からもう一度開いてください。</p>');
- return liveShell(cid?'団体情報を編集':'コミュニティを登録',`<div class="live-register-intro"><span class="badge badge-neutral">運営者専用</span><p>団体に伺った内容をまとめて登録します。学生団体・サークル、大学・ゼミ、地域団体、企業・店舗にも対応しています。</p><ol class="live-register-steps"><li>情報を入力</li><li>確認待ちで保存</li><li>本人確認・掲載同意を確認して公開</li></ol></div>${liveCommunityForm(c)}`);
+ return liveShell(cid?'団体情報を編集':'コミュニティを登録',`<div class="live-register-intro"><span class="badge badge-neutral">運営者専用</span><p>団体に伺った内容をまとめて登録します。学生団体・サークル、大学・ゼミ、地域団体、企業・店舗にも対応しています。</p><ol class="live-register-steps"><li>情報を入力</li><li>確認待ちで保存</li><li>本人確認・掲載同意を確認して公開</li></ol></div>${cid?'':liveCommunityImportHTML()}${liveCommunityForm(c)}`);
 }
 function liveSelect(name,label,value,options,required=false){const values=[...new Set([...options,...(value?[value]:[])])];return `<div class="field"><label for="lf_${name}">${label}</label><select id="lf_${name}" name="${name}" ${required?'required':''}><option value="">選択してください</option>${values.map(v=>`<option value="${escapeHtml(v)}" ${v===value?'selected':''}>${escapeHtml(v)}</option>`).join('')}</select></div>`;}
 function liveCommunityForm(c={}){
@@ -297,6 +344,7 @@ function bindLiveUI(scope){
  bindConditionUI(scope);
  scope.querySelectorAll('[data-live-refresh]').forEach(b=>b.onclick=()=>refreshLive());
  const search=document.getElementById('liveSearch');if(search)search.onsubmit=e=>{e.preventDefault();liveQuery=document.getElementById('liveKeyword').value;liveOnlyFollowed=!!document.getElementById('liveOnlyFollowed')?.checked;render();};
+ bindLiveCommunityImport();
  const cf=document.getElementById('liveCommunityForm');if(cf){cf.addEventListener('invalid',event=>{let parent=event.target.parentElement;while(parent&&parent!==cf){if(parent.tagName==='DETAILS')parent.open=true;parent=parent.parentElement;}},true);const c=LIVE.review?.communities.find(x=>x.id===cf.dataset.id)||{},read=bindCommunityMediaEditor(cf,c);cf.onsubmit=async e=>{e.preventDefault();const err=cf.querySelector('.live-form-error'),button=cf.querySelector('button[type=submit]');err.textContent='';try{const form=new FormData(cf),data=Object.fromEntries(form);data.genres=preserveCatalogueGenres(c.pendingChange?.genres||c.genres||[],form.getAll('genres'),data.sector);data.activityDays=form.getAll('activityDays');data.campusYears=form.getAll('campusYears');data.campusAllYears=cf.elements.campusAllYears.checked;data.beginnerWelcome=cf.elements.beginnerWelcome.checked;data.sponsorListed=cf.elements.sponsorListed.checked;data.officialUpdatesEnabled=cf.elements.officialUpdatesEnabled.checked;data.adminInfo=Object.fromEntries(['representative','email','phone','source','notes'].map(k=>[k,form.get(k)||'']));data.adminInfo.consentConfirmed=cf.elements.consentConfirmed.checked;Object.assign(data,read());button.disabled=true;await accountAPI('live/communities'+(cf.dataset.id?'/'+cf.dataset.id:''),'POST',data);await refreshLive(false);nav('admin');toast('団体情報を保存しました。確認後に公開できます');}catch(e){err.textContent=e.message;button.disabled=false;}};}
  bindCommunityGenreFields(cf);
  bindCommunityWizard(cf);
