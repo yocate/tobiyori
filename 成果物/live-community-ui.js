@@ -38,7 +38,7 @@ function liveRecordRows(filter='all'){
  const rows=liveOwnApplications().filter(p=>({waiting:p.status==='APPLIED',upcoming:p.status==='APPROVED',history:p.status==='DONE',closed:['DECLINED','CANCELLED','EXPIRED'].includes(p.status)}[filter]??true));
  return `${LIVE.error?`<p class="live-form-error" role="alert">${escapeHtml(LIVE.error)}</p>`:''}<button class="btn btn-ghost btn-sm" data-live-refresh>最新の状況に更新</button>${rows.map(liveApplicationCard).join('')||'<div class="card live-card"><p>この区分の参加記録はまだありません。</p><button class="btn btn-primary" data-nav="live">募集中の活動を探す</button></div>'}${filter==='history'?'<p class="hint">運営担当者が参加完了を記録した活動を表示します。正式な活動証明書の発行は今後対応します。</p>':''}`;
 }
-function liveRecordsHTML(){return `<p>申込み状況、集合場所、担当者との連絡をまとめて確認できます。</p><div class="live-navigation" aria-label="参加記録の絞り込み">${Object.entries({all:'すべて',waiting:'承認待ち',upcoming:'参加予定',history:'参加完了',closed:'取消・受付終了'}).map(([k,l])=>`<button class="btn ${liveRecordFilter===k?'btn-primary':'btn-ghost'} btn-sm" data-live-record="${k}" aria-pressed="${liveRecordFilter===k}">${l}</button>`).join('')}</div>${liveOwnApplications().length?liveRecordRows(liveRecordFilter):'<div class="card live-card"><p>まだ申込みはありません。</p><button class="btn btn-primary" data-nav="live">募集中の活動を探す</button></div>'}`;}
+function liveRecordsHTML(){return `${connectionContinueHTML(true)}<p>申込み状況、集合場所、担当者との連絡をまとめて確認できます。</p><div data-lounge-considering></div><div class="live-navigation" aria-label="参加記録の絞り込み">${Object.entries({all:'すべて',waiting:'承認待ち',upcoming:'参加確定',history:'参加完了',closed:'取消・受付終了'}).map(([k,l])=>`<button class="btn ${liveRecordFilter===k?'btn-primary':'btn-ghost'} btn-sm" data-live-record="${k}" aria-pressed="${liveRecordFilter===k}">${l}</button>`).join('')}</div>${liveOwnApplications().length?liveRecordRows(liveRecordFilter):'<div class="card live-card"><p>まだ申込みはありません。</p><button class="btn btn-primary" data-nav="live">募集中の活動を探す</button></div>'}`;}
 function liveFollowsHTML(){
  const communities=LIVE.dashboard?.followedCommunities||[];
  return `<p>フォローすると、新しい募集が公開されたときにアプリ内でお知らせします。</p><div class="act-grid">${communities.map(c=>`<article class="card live-card"><h3>${escapeHtml(c.name)}</h3>${c.available?`<p>${escapeHtml(c.city)} ／ ${escapeHtml(c.type)}</p><button class="btn btn-secondary btn-sm" data-nav="livecommunity" data-param="${c.id}">紹介・募集中の活動を見る</button>`:'<p>現在、団体の情報は公開されていません。フォローは続けられます。</p>'}<button class="btn btn-ghost btn-sm" data-live-follow="${c.id}" data-follow="false">フォローをやめる</button></article>`).join('')||'<div class="card live-card"><p>フォロー中の団体はまだありません。</p><button class="btn btn-primary" data-nav="live">コミュニティを探す</button></div>'}</div>`;
@@ -159,7 +159,7 @@ function liveSelect(name,label,value,options,required=false){const values=[...ne
 function liveCommunityForm(c={}){
  const info=c.adminInfo||{};c={...c,...(c.pendingChange||{})};
  return `<form id="liveCommunityForm" data-id="${c.id||''}" class="live-register-form">
- <section class="card live-card live-registration-required" aria-labelledby="registrationRequiredTitle"><h2 id="registrationRequiredTitle"><span class="registration-tag registration-tag-required">必須</span>まずは、この4項目</h2><p class="registration-description">この4項目だけで、確認待ちとして保存できます。</p><div class="live-form-grid">${liveField('name','団体名（必須）',c.name||'','text',true)}${liveSelect('type','団体の種類（必須）',c.type||'',['学生団体・サークル','大学・ゼミ','自治会','NPO・ボランティア団体','地域サークル','商店街','企業・店舗','その他'],true)}${liveSelect('city','主な活動市町村（必須）',c.city||'高崎市',GUNMA_MUNICIPALITIES,true)}</div>${liveField('intro','団体の紹介・普段の活動（必須）',c.intro||'','textarea',true)}<p class="hint">例：地域の子どもたちと一緒に、月2回の学習支援を行っています。</p></section>
+ <section class="card live-card live-registration-required" aria-labelledby="registrationRequiredTitle"><h2 id="registrationRequiredTitle"><span class="registration-tag registration-tag-required">必須</span>まずは、この4項目</h2><p class="registration-description">この4項目だけで、確認待ちとして保存できます。</p><div class="live-form-grid">${liveField('name','団体名（必須）',c.name||'','text',true)}${liveSelect('type','団体の種類（必須）',c.type||'',['学生団体・サークル','大学・ゼミ','自治会','NPO・ボランティア団体','地域サークル','商店街','企業・店舗','その他'],true)}${liveSelect('city','主な活動市町村（必須）',c.city||'高崎市',GUNMA_MUNICIPALITIES,true)}</div>${liveField('intro','団体の紹介・普段の活動（必須）',c.intro||'','textarea',true)}<p class="hint">例：地域の子どもたちと一緒に、月2回の学習支援を行っています。</p><button type="button" class="btn btn-secondary" data-form-save>この内容で確認待ち保存</button><p class="hint">写真やSNSはあとから追加できます。保存だけでは公開されません。</p></section>
  <details class="live-registration-options" ${c.id?'open':''}><summary><span class="registration-tag registration-tag-optional">任意</span><span class="registration-option-title">追加情報を入力する<small>写真・SNS・活動の詳しい情報など。あとから追加・変更できます。</small></span></summary><div class="live-registration-option-body"><p class="registration-option-hint">ここから下はすべて任意です。わかる項目だけ入力してください。</p>
  <section class="card live-card"><h2>活動の詳しい情報 <small>公開する内容</small></h2>${liveField('university','大学・学校名（該当する場合）',c.university||'').replace('type="text"','type="text" list="liveUniversities"')}<datalist id="liveUniversities">${GUNMA_UNIVERSITIES.map(u=>`<option value="${escapeHtml(u)}"></option>`).join('')}</datalist><fieldset class="live-genres" data-genres="${escapeHtml(JSON.stringify(c.genres||[]))}">${communityGenreFields(c)}</fieldset><div class="live-form-grid">${liveField('schedule','普段の活動日時・頻度',c.schedule||'')}${liveField('audience','参加対象・学年',c.audience||'')}</div>${liveField('welcome','初参加の方への案内・受け入れ方針',c.welcome||'','textarea')}${liveField('transport','アクセス・利用できる交通手段',c.transport||'')}<p class="hint">ここには最寄り駅や大まかな地域を記載します。正確な集合場所は募集ごとに設定します。</p></section>
  ${communityDiscoveryFields(c)}${officialSourceSettings(c)}<section class="card live-card"><h2>写真・SNS <small>公開する内容</small></h2>${communityMediaFields(c).replace('この試作版では自分のアカウントのサンプル記録として保存されます。','登録した情報は確認後に団体紹介へ表示します。')}</section>
@@ -249,6 +249,12 @@ async function liveAction(route,data={},button){
  if(!accountUser){nav('login');return null;}if(button)button.disabled=true;
  try{const result=await accountAPI('live/'+route,'POST',data);await refreshLive(false);return result;}catch(e){toast(e.message);return null;}finally{if(button)button.disabled=false;}
 }
+function bindRegistrationShortcuts(scope){
+ for(const form of scope.querySelectorAll('#liveCommunityForm,#liveActivityForm')){
+  form.querySelectorAll('[data-form-save]').forEach(button=>button.onclick=()=>form.requestSubmit());
+  form.addEventListener('invalid',e=>{let el=e.target.parentElement;while(el&&el!==form){if(el.tagName==='DETAILS')el.open=true;el=el.parentElement;}},true);
+ }
+}
 function communityQuestionsSection(cid){return `<section class="card live-card community-questions" data-community-questions="${escapeHtml(cid)}"><h2>コミュニティへの匿名質問</h2><p role="status">質問を読み込んでいます…</p></section>`;}
 function communityQuestionsHTML(q){
  const item=x=>`<article class="question-item"><p class="question-q"><b aria-hidden="true">Q</b>${escapeHtml(x.body)}</p>${x.answer?`<p class="question-a"><b aria-hidden="true">A</b>${escapeHtml(x.answer)}</p>`:''}</article>`;
@@ -281,6 +287,7 @@ function bindLiveUI(scope){
  bindApprovalSearchUI(scope);
  scope.querySelectorAll('[data-community-questions]').forEach(box=>void loadCommunityQuestions(box));
  const communityInbox=scope.querySelector('[data-community-question-inbox]');if(communityInbox&&accountUser)void loadCommunityQuestionInbox(communityInbox);
+ bindRegistrationShortcuts(scope);
  bindSerendipityUI(scope);
  bindNearbyUI(scope);
  bindLiveReviewUI(scope);

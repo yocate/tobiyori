@@ -646,6 +646,31 @@ body:not(.operator-app) #accountBar .account-bar-actions:empty{display:none}
 .discovery-group .discovery-community>.badge:first-child{display:none}
 .nearby-entry,.nearby-finder{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:20px;margin:22px 0}.nearby-entry h2,.nearby-finder h2{margin:0 0 8px}.nearby-entry p{margin:0 0 14px}.nearby-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end;margin:20px 0}.nearby-controls label{display:grid;gap:6px;font-weight:700}.nearby-controls select{width:100%;min-height:44px;padding:8px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit}.nearby-controls .btn{min-height:44px}.nearby-results{margin-top:24px}.nearby-explore-extra{margin:28px 0;border:1px solid var(--line);border-radius:14px;padding:0 18px}.nearby-explore-extra>summary{cursor:pointer;padding:18px 0;font-weight:800}.community-questions{margin-top:24px}.community-questions .question-ask{margin-top:16px}.community-questions textarea{display:block;width:100%;box-sizing:border-box;min-height:100px;margin:8px 0;padding:10px;font:inherit;border:1px solid var(--line-strong);border-radius:10px}.community-questions .question-templates{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
 @media(max-width:800px){.nearby-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.nearby-controls{grid-template-columns:1fr}.nearby-entry,.nearby-finder{padding:16px}}
+/* Connection journey styles */
+/* Connection journey — use shared theme tokens for light and dark modes. */
+.connection-journey{padding-bottom:24px}
+.connection-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.connection-steps li{padding:24px;border:1px solid var(--line);border-radius:var(--radius-m);background:var(--surface);display:flex;flex-direction:column;align-items:flex-start;position:relative;min-width:0}
+.connection-step-number{color:var(--green);font:800 26px var(--font-display);letter-spacing:.06em}
+.connection-steps h3{font-size:18px;margin:12px 0 8px;line-height:1.6}
+.connection-steps p{color:var(--ink-soft);font-size:14px;line-height:1.9;margin:0 0 20px;flex:1}
+.connection-continue{padding-top:24px;padding-bottom:24px}
+.connection-return-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.connection-return-card{padding:24px;min-width:0;display:flex;flex-direction:column;overflow-wrap:anywhere;border-top:4px solid var(--green)}
+.connection-return-label{font-size:12px;font-weight:700;color:var(--ink-soft);margin:0 0 8px}
+.connection-return-card h3{font-size:20px;margin:0 0 8px}
+.connection-previous{font-size:13px;color:var(--ink-soft);margin:0 0 20px}
+.connection-next{padding:18px;border-radius:var(--radius-s);background:var(--surface-alt);flex:1}
+.connection-next h4{font-size:16px;margin:0 0 8px;line-height:1.7}
+.connection-next p{font-size:13px;color:var(--ink-soft);line-height:1.8;margin:0 0 14px}
+.connection-return-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:18px}
+.connection-followed{font-size:13px;font-weight:700;color:var(--green)}
+@media(max-width:800px){.connection-steps,.connection-return-grid{grid-template-columns:1fr}.connection-steps li,.connection-return-card{padding:20px}.connection-steps h3{margin-top:6px}}
+
+/* End connection journey styles */
+
+#liveActivityForm input[type="datetime-local"]{box-sizing:border-box;width:100%;min-width:0;min-height:48px;padding:10px 12px;font:inherit;border:1px solid #b7cba9;border-radius:12px;background:#fff;color:#064631}
+.registration-section{margin:24px 0;padding:16px;border:1px solid #b7cba9;border-radius:12px}.registration-section>summary{cursor:pointer;font-size:1.15rem;font-weight:700;min-height:44px;padding:8px}.registration-section[open]>summary{margin-bottom:16px}
 </style>
 
 <div class="topbar">
@@ -1207,7 +1232,7 @@ function liveRecordRows(filter='all'){
  const rows=liveOwnApplications().filter(p=>({waiting:p.status==='APPLIED',upcoming:p.status==='APPROVED',history:p.status==='DONE',closed:['DECLINED','CANCELLED','EXPIRED'].includes(p.status)}[filter]??true));
  return `${LIVE.error?`<p class="live-form-error" role="alert">${escapeHtml(LIVE.error)}</p>`:''}<button class="btn btn-ghost btn-sm" data-live-refresh>最新の状況に更新</button>${rows.map(liveApplicationCard).join('')||'<div class="card live-card"><p>この区分の参加記録はまだありません。</p><button class="btn btn-primary" data-nav="live">募集中の活動を探す</button></div>'}${filter==='history'?'<p class="hint">運営担当者が参加完了を記録した活動を表示します。正式な活動証明書の発行は今後対応します。</p>':''}`;
 }
-function liveRecordsHTML(){return `<p>申込み状況、集合場所、担当者との連絡をまとめて確認できます。</p><div data-lounge-considering></div><div class="live-navigation" aria-label="参加記録の絞り込み">${Object.entries({all:'すべて',waiting:'承認待ち',upcoming:'参加確定',history:'参加完了',closed:'取消・受付終了'}).map(([k,l])=>`<button class="btn ${liveRecordFilter===k?'btn-primary':'btn-ghost'} btn-sm" data-live-record="${k}" aria-pressed="${liveRecordFilter===k}">${l}</button>`).join('')}</div>${liveOwnApplications().length?liveRecordRows(liveRecordFilter):'<div class="card live-card"><p>まだ申込みはありません。</p><button class="btn btn-primary" data-nav="live">募集中の活動を探す</button></div>'}`;}
+function liveRecordsHTML(){return `${connectionContinueHTML(true)}<p>申込み状況、集合場所、担当者との連絡をまとめて確認できます。</p><div data-lounge-considering></div><div class="live-navigation" aria-label="参加記録の絞り込み">${Object.entries({all:'すべて',waiting:'承認待ち',upcoming:'参加確定',history:'参加完了',closed:'取消・受付終了'}).map(([k,l])=>`<button class="btn ${liveRecordFilter===k?'btn-primary':'btn-ghost'} btn-sm" data-live-record="${k}" aria-pressed="${liveRecordFilter===k}">${l}</button>`).join('')}</div>${liveOwnApplications().length?liveRecordRows(liveRecordFilter):'<div class="card live-card"><p>まだ申込みはありません。</p><button class="btn btn-primary" data-nav="live">募集中の活動を探す</button></div>'}`;}
 function liveSaveButton(c){
  const saved=!!accountUser&&!!LIVE.dashboard?.saves?.includes(c.id);
  return `<button type="button" class="btn btn-sm community-save ${saved?'is-saved':'btn-secondary'}" data-community-save="${escapeHtml(c.id)}" data-saved="${saved}" aria-pressed="${saved}" aria-label="${escapeHtml(c.name)}を${saved?'保存から外す':'保存する'}"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="${saved?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4Z"/></svg>${saved?'保存済み':'保存する'}</button>`;
@@ -1465,7 +1490,7 @@ function liveSelect(name,label,value,options,required=false){const values=[...ne
 function liveCommunityForm(c={}){
  const info=c.adminInfo||{};c={...c,...(c.pendingChange||{})};
  return `<form id="liveCommunityForm" data-id="${c.id||''}" class="live-register-form">
- <section class="card live-card live-registration-required" aria-labelledby="registrationRequiredTitle"><h2 id="registrationRequiredTitle"><span class="registration-tag registration-tag-required">必須</span>まずは、この4項目</h2><p class="registration-description">この4項目だけで、確認待ちとして保存できます。</p><div class="live-form-grid">${liveField('name','団体名（必須）',c.name||'','text',true)}${liveSelect('type','団体の種類（必須）',c.type||'',['学生団体・サークル','大学・ゼミ','自治会','NPO・ボランティア団体','地域サークル','商店街','企業・店舗','その他'],true)}${liveSelect('city','主な活動市町村（必須）',c.city||'高崎市',GUNMA_MUNICIPALITIES,true)}</div>${liveField('intro','団体の紹介・普段の活動（必須）',c.intro||'','textarea',true)}<p class="hint">例：地域の子どもたちと一緒に、月2回の学習支援を行っています。</p></section>
+ <section class="card live-card live-registration-required" aria-labelledby="registrationRequiredTitle"><h2 id="registrationRequiredTitle"><span class="registration-tag registration-tag-required">必須</span>まずは、この4項目</h2><p class="registration-description">この4項目だけで、確認待ちとして保存できます。</p><div class="live-form-grid">${liveField('name','団体名（必須）',c.name||'','text',true)}${liveSelect('type','団体の種類（必須）',c.type||'',['学生団体・サークル','大学・ゼミ','自治会','NPO・ボランティア団体','地域サークル','商店街','企業・店舗','その他'],true)}${liveSelect('city','主な活動市町村（必須）',c.city||'高崎市',GUNMA_MUNICIPALITIES,true)}</div>${liveField('intro','団体の紹介・普段の活動（必須）',c.intro||'','textarea',true)}<p class="hint">例：地域の子どもたちと一緒に、月2回の学習支援を行っています。</p><button type="button" class="btn btn-secondary" data-form-save>この内容で確認待ち保存</button><p class="hint">写真やSNSはあとから追加できます。保存だけでは公開されません。</p></section>
  <details class="live-registration-options" ${c.id?'open':''}><summary><span class="registration-tag registration-tag-optional">任意</span><span class="registration-option-title">追加情報を入力する<small>写真・SNS・活動の詳しい情報など。あとから追加・変更できます。</small></span></summary><div class="live-registration-option-body"><p class="registration-option-hint">ここから下はすべて任意です。わかる項目だけ入力してください。</p>
  <section class="card live-card"><h2>活動の詳しい情報 <small>公開する内容</small></h2>${liveField('university','大学・学校名（該当する場合）',c.university||'').replace('type="text"','type="text" list="liveUniversities"')}<datalist id="liveUniversities">${GUNMA_UNIVERSITIES.map(u=>`<option value="${escapeHtml(u)}"></option>`).join('')}</datalist><fieldset class="live-genres" data-genres="${escapeHtml(JSON.stringify(c.genres||[]))}">${communityGenreFields(c)}</fieldset><div class="live-form-grid">${liveField('schedule','普段の活動日時・頻度',c.schedule||'')}${liveField('audience','参加対象・学年',c.audience||'')}</div>${liveField('welcome','初参加の方への案内・受け入れ方針',c.welcome||'','textarea')}${liveField('transport','アクセス・利用できる交通手段',c.transport||'')}<p class="hint">ここには最寄り駅や大まかな地域を記載します。正確な集合場所は募集ごとに設定します。</p></section>
  ${communityDiscoveryFields(c)}${officialSourceSettings(c)}<section class="card live-card"><h2>写真・SNS <small>公開する内容</small></h2>${communityMediaFields(c).replace('この試作版では自分のアカウントのサンプル記録として保存されます。','登録した情報は確認後に団体紹介へ表示します。')}</section>
@@ -1621,8 +1646,15 @@ function bindParticipationUI(scope){
    considering.innerHTML=rows.length?`<section class="card live-card"><h3>ラウンジで検討中（まだ申込みではありません）</h3>${rows.map(a=>`<p><b>${escapeHtml(a.title)}</b>　${escapeHtml(liveDate(a.startsAt))}</p><div class="live-navigation"><a class="btn btn-secondary btn-sm" href="#/waiting/${encodeURIComponent(a.id)}">ラウンジを見る</a><a class="btn btn-primary btn-sm" href="#/liveactivity/${encodeURIComponent(a.id)}">活動を確かめて申し込む</a></div>`).join('')}</section>`:'';}
  }).catch(()=>{});
 }
+function bindRegistrationShortcuts(scope){
+ for(const form of scope.querySelectorAll('#liveCommunityForm,#liveActivityForm')){
+  form.querySelectorAll('[data-form-save]').forEach(button=>button.onclick=()=>form.requestSubmit());
+  form.addEventListener('invalid',e=>{let el=e.target.parentElement;while(el&&el!==form){if(el.tagName==='DETAILS')el.open=true;el=el.parentElement;}},true);
+ }
+}
 function bindLiveUI(scope){
  bindApprovalSearchUI(scope);
+ bindRegistrationShortcuts(scope);
  bindWaitingUI(scope);
  bindParticipationUI(scope);
  scope.querySelectorAll('[data-questions]').forEach(box=>void loadQuestions(box));
@@ -2832,6 +2864,9 @@ function viewGuide(){
 
 function viewHome(){
   return `<section class="hero"><div class="container hero-inner"><div class="hero-text"><div class="eyebrow">群馬の活動を見つけよう</div><h1>気になる活動から、<br>地域とつながる。</h1><p class="hero-lead">内容と参加条件を確認して、参加したい活動に申し込めます。</p><div class="hero-actions"><button class="btn btn-primary" data-nav="list">活動をさがす</button></div></div><div class="hero-art tobiyori-hero-art" aria-hidden="true"><div class="tobiyori-mascot"><img src="tobiyori-logo-transparent.png" alt=""></div></div></div></section>
+
+  ${connectionJourneyHTML()}
+  ${connectionContinueHTML()}
   ${liveHomeActivitiesHTML()}
   <div class="container">${serendipityEntryHTML()}</div>
   ${waitingHomeHTML()}
@@ -4081,6 +4116,48 @@ function bindGlobalActions(scope){
     openMessageThread(b.dataset.msgOpen, b.dataset.msgRole);
   }));
 }
+
+/* Connection journey: discover, join, return. Embedded in gunma-community-map.html. */
+function connectionJourneyHTML(){
+  return `<section class="section container connection-journey" aria-labelledby="connection-journey-title">
+    <div class="section-head"><div><div class="eyebrow">トビヨリで、つながりが育つ</div><h2 id="connection-journey-title">見つけて、参加して、その先へ。</h2><p>気になった活動との出会いを、一度きりで終わらせないために。</p></div></div>
+    <ol class="connection-steps">
+      <li><span class="connection-step-number">01</span><h3>まだ知らない「好き」に出会う</h3><p>条件を決めきれなくても大丈夫。よりみち発見で、普段は探さない活動ものぞいてみよう。</p><button class="btn btn-secondary btn-sm" data-nav="serendipity">よりみち発見へ</button></li>
+      <li><span class="connection-step-number">02</span><h3>初めての一歩を、仲間と</h3><p>気になる活動のラウンジで、参加を考えている人とあいさつ。申込みの前に、ひと息つける場所です。</p><button class="btn btn-secondary btn-sm" data-nav="waiting">ラウンジを見る</button></li>
+      <li><span class="connection-step-number">03</span><h3>「また行こう」につなげる</h3><p>参加記録から、同じ団体の次の活動へ。フォローして、これからの募集も見つけられます。</p><button class="btn btn-secondary btn-sm" data-nav="myactivity">参加記録を見る</button></li>
+    </ol>
+  </section>`;
+}
+
+function connectionReturns(now=Date.now()){
+  if(OPERATOR_APP||!accountUser||!LIVE.loaded||LIVE.error||!LIVE.dashboard)return [];
+  const communities=new Map((LIVE.catalog?.communities||[]).map(c=>[c.id,c]));
+  const applications=liveOwnApplications();
+  const alreadyJoined=new Set(applications.filter(p=>['APPLIED','APPROVED','DONE'].includes(p.status)).map(p=>p.activity_id));
+  const completed=applications.filter(p=>p.status==='DONE'&&communities.has(p.activity?.communityId))
+    .slice().sort((a,b)=>(Date.parse(b.activity.endsAt)||Date.parse(b.created_at)||0)-(Date.parse(a.activity.endsAt)||Date.parse(a.created_at)||0)||String(a.id).localeCompare(String(b.id)));
+  const seen=new Set();
+  return completed.filter(p=>{const id=p.activity.communityId;if(seen.has(id))return false;seen.add(id);return true;}).slice(0,3).map(p=>{
+    const community=communities.get(p.activity.communityId);
+    const next=(LIVE.catalog?.activities||[]).filter(a=>a.communityId===community.id&&a.status==='PUBLISHED'&&!a.changePending&&!isRecruitment(a)&&Date.parse(a.startsAt)>now&&Date.parse(a.deadline||a.startsAt)>now&&!alreadyJoined.has(a.id))
+      .slice().sort((a,b)=>Date.parse(a.startsAt)-Date.parse(b.startsAt)||String(a.id).localeCompare(String(b.id)))[0]||null;
+    return {community,previous:p,next,followed:(LIVE.dashboard.follows||[]).includes(community.id)};
+  });
+}
+
+function connectionContinueHTML(inRecords=false){
+  const returns=connectionReturns();
+  if(!returns.length)return '';
+  const cards=returns.map(({community,previous,next,followed})=>`<article class="card connection-return-card">
+    <p class="connection-return-label">参加したコミュニティ</p><h3>${escapeHtml(community.name)}</h3>
+    <p class="connection-previous">前回：${escapeHtml(previous.activity.title||previous.title||'参加した活動')}</p>
+    <div class="connection-next">${next?`<span class="connection-return-label">次の活動</span><h4>${escapeHtml(next.title)}</h4><p>${escapeHtml(liveDate(next.startsAt))}</p><button class="btn btn-primary btn-sm" data-nav="liveactivity" data-param="${escapeHtml(next.id)}">次の活動を見てみる</button>`:'<h4>次の募集を待つあいだも</h4><p>現在、参加できる次の活動はありません。団体のページやフォローから、新しい募集を確認できます。</p>'}</div>
+    <div class="connection-return-actions"><button class="btn btn-secondary btn-sm" data-nav="livecommunity" data-param="${escapeHtml(community.id)}">団体を見る</button>${followed?'<span class="connection-followed">フォロー中</span>':`<button class="btn btn-secondary btn-sm" data-live-follow="${escapeHtml(community.id)}" data-follow="true">フォローする</button>`}</div>
+  </article>`).join('');
+  return `<section class="${inRecords?'connection-continue':'section container connection-continue'}" aria-labelledby="connection-continue-title"><div class="section-head"><div><div class="eyebrow">参加のあとも、つながる</div><h2 id="connection-continue-title">この前の、つづき。</h2><p>一度参加した場所には、次のきっかけが待っているかもしれません。</p></div>${inRecords?'':'<button class="btn btn-ghost btn-sm" data-nav="myactivity">参加記録をすべて見る</button>'}</div><div class="connection-return-grid">${cards}</div></section>`;
+}
+
+/* End connection journey */
 
 /* ---------------- Boot ---------------- */
 parseHash();
