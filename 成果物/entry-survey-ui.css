@@ -1,0 +1,18 @@
+/* Entry survey — use shared theme tokens for light and dark modes. */
+.entry-survey{padding-top:24px;padding-bottom:8px}
+.entry-survey-card{padding:28px;border-top:4px solid var(--green)}
+.entry-survey-card h2{font-size:22px;line-height:1.6;margin:0 0 10px}
+.entry-survey-card p{font-size:15px;line-height:1.9;color:var(--ink-soft);margin:0 0 12px}
+.entry-survey-eyebrow{font-size:13px!important;font-weight:700;color:var(--green)!important;margin:0 0 6px!important}
+.entry-survey-start{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.entry-survey-start .btn{flex-shrink:0}
+.entry-survey-progress{height:6px;border-radius:999px;background:var(--surface-alt);overflow:hidden;margin:0 0 16px}
+.entry-survey-progress span{display:block;height:100%;background:var(--green);border-radius:inherit}
+.entry-survey-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:8px 0 14px}
+.entry-survey-option{min-height:56px;padding:14px 18px;border:1px solid var(--line-strong);border-radius:var(--radius-s);background:var(--surface);color:var(--ink);font:600 16px/1.6 var(--font-body);text-align:left;cursor:pointer}
+.entry-survey-option:hover,.entry-survey-option:focus-visible{border-color:var(--green);background:var(--green-pale)}
+.entry-survey-tip{padding:14px 16px;border-radius:var(--radius-s);background:var(--surface-alt)}
+.entry-survey-actions{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}
+.entry-survey-answers{font-size:13px!important;margin:0!important}
+.entry-survey-link{border:0;background:none;padding:4px 0;color:var(--green);font:700 14px var(--font-body);text-decoration:underline;cursor:pointer}
+@media(max-width:800px){.entry-survey-card{padding:20px}.entry-survey-start{flex-direction:column;align-items:flex-start}.entry-survey-options{grid-template-columns:1fr}.entry-survey-card h2{font-size:20px}}
