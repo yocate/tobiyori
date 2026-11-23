@@ -52,6 +52,11 @@ const open=dir=>{const db=new DatabaseSync(path.join(dir,'accounts.sqlite'));db.
   assert.throws(()=>restoreBackup(db,badRows,{replace:true}),/形式/,'rows that are not a list');
   assert.equal(countAccounts(),1,'refused restores leave the destination as it was');
   assert.deepEqual(JSON.parse(JSON.stringify(dumpDatabase(db))).tables,before.tables);
+  // A row pointing at an account that is not in the backup is caught before commit and rolled back.
+  const dangling=JSON.parse(JSON.stringify(dump));
+  dangling.tables.live_communities.push({...dangling.tables.live_communities[0],id:'dangling-community',owner_id:'no-such-account'});
+  assert.throws(()=>restoreBackup(db,dangling,{replace:true}),/参照関係/,'dangling foreign key');
+  assert.equal(db.prepare('SELECT email FROM accounts').get().email,'tester@example.test','destination data survives a dangling-reference restore');
   // A failure while loading rows rolls back everything, including tables created for the backup.
   const broken=JSON.parse(JSON.stringify(dump));
   broken.schema.push('CREATE TABLE restore_probe (id INTEGER PRIMARY KEY)');broken.tables.restore_probe=[{id:1}];

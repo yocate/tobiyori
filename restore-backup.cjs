@@ -63,6 +63,10 @@ function restoreBackup(db, dump, { replace = false } = {}) {
       }
       counts[name] = n;
     }
+    // Deferred foreign-key violations only surface at the outer commit on a Durable Object, past this function's
+    // error handling. Check here so a bad reference rolls the whole restore back with a clear message.
+    if (db.prepare('PRAGMA foreign_key_check').all().length)
+      throw invalid('バックアップの参照関係が壊れているため、復元を取り消しました（存在しないアカウントや団体を指す行があります）。');
   });
   return { counts, skippedColumns: Object.fromEntries(Object.entries(skippedColumns).map(([k, v]) => [k, [...v]])), backupCreatedAt: dump.createdAt || null };
 }

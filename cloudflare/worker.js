@@ -346,9 +346,15 @@ export class TobiyoriDatabase extends DurableObject {
           return { status: 500, error: '復元前のコピーを保存できなかったため、復元していません。' };
         }
         const result = restoreBackup(this.db, dump, { replace });
-        this.syncAdmins();
-        console.log(JSON.stringify({ event: 'restored', key, saved, counts: result.counts }));
-        return { ok: true, savedBefore: saved, ...result };
+        // The data is already replaced here. A failed admin sync must not be reported as a failed restore;
+        // alarm() runs syncAdmins again, so it catches up by itself.
+        let adminSync = 'ok';
+        try { this.syncAdmins(); } catch (e) {
+          adminSync = 'failed';
+          console.error(JSON.stringify({ event: 'restore-admin-sync-failed', error: String(e?.message || e).slice(0, 300) }));
+        }
+        console.log(JSON.stringify({ event: 'restored', key, saved, counts: result.counts, adminSync }));
+        return { ok: true, savedBefore: saved, adminSync, ...result };
       } catch (e) {
         if (e.status) return { status: e.status, error: e.message, savedBefore: saved };
         console.error(JSON.stringify({ event: 'restore-failed', error: String(e?.message || e).slice(0, 300) }));
