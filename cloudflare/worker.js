@@ -11,9 +11,11 @@ import { sharedDataConfig, forwardSharedData, sharedEntryScript, prepareSharedCu
 import { notificationCursor, publicMutation, openLiveSocket, broadcastLiveUpdates, liveSocketMessage } from './live-updates.js';
 import { frontendOrigin } from './frontend-origin.js';
 import csp from '../dist/csp.json';
+import restoreModule from '../restore-backup.cjs';
 
 const { createApp, localHasher } = appModule;
 const { rateLimitIp } = ipModule;
+const { restoreBackup, dumpDatabase } = restoreModule;
 const INTERNAL = 'x-tobiyori-internal-';
 const MAX_BODY = 4 * 1024 * 1024;
 const ALARM_MS = 60_000;
@@ -163,31 +165,69 @@ async function api(request, env, ctx) {
   return response;
 }
 
+// Moving from another Cloudflare account. Disabled unless the RESTORE_SECRET secret is set; remove it afterwards.
+// 1. wrangler r2 object put <backups bucket>/restore/<name>.json --file <old db/YYYY-MM-DD.json> --remote
+// 2. POST /internal/restore  Authorization: Bearer <RESTORE_SECRET>  {"key":"restore/<name>.json","replace":true}
+// The current data is saved first to db/pre-restore-<time>.json in the same bucket, so it can be restored back.
+async function sameSecret(a, b) {
+  const enc = new TextEncoder();
+  const [x, y] = await Promise.all([a, b].map(v => crypto.subtle.digest('SHA-256', enc.encode(v))));
+  return crypto.subtle.timingSafeEqual(x, y);
+}
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+function ownAliases(env) {
+  const aliases = JSON.parse(env.SHARED_DATA_ID_ALIASES);
+  if (!aliases || Array.isArray(aliases) || typeof aliases !== 'object' || Object.keys(aliases).length > 1000 || Object.entries(aliases).some(([a, b]) => !UUID.test(a) || typeof b !== 'string' || !UUID.test(b))) throw new Error('bad aliases');
+  // Own accounts: the "use your existing account" hint of the shared mode would be wrong here.
+  return { aliases, accountNotice: env.OWN_DATA_ACCOUNT_NOTICE === 'existing' };
+}
+async function restore(request, env) {
+  if (!env.RESTORE_SECRET || env.RESTORE_SECRET.length < 32) return new Response('Not found', { status: 404 });
+  // While another site's database is in use, this one is locked; switch back to the own database first.
+  if (env.SHARED_DATA_ORIGIN) return json(409, { error: 'SHARED_DATA_ORIGIN を外して公開してから読み込んでください。' });
+  if (request.method !== 'POST') return json(405, { error: 'POSTで送ってください。' });
+  if (await limited(env.AUTH_LIMITER, 'restore:' + rateLimitIp(request.headers.get('cf-connecting-ip') || 'unknown'))) return rateLimited();
+  if (!(await sameSecret(request.headers.get('authorization') || '', 'Bearer ' + env.RESTORE_SECRET))) return json(401, { error: '鍵が違います。' });
+  let input;
+  try { input = JSON.parse(await readBody(request) || '{}'); } catch { return json(400, { error: 'JSONで送ってください。' }); }
+  if (typeof input.key !== 'string' || !/^restore\/[\w.-]+\.json$/.test(input.key)) return json(400, { error: 'key は restore/<名前>.json にしてください。' });
+  const result = await database(env).restoreFromBackup(input.key, input.replace === true);
+  return json(result.status || 200, result);
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // Own-data mode has one address (sessions are per host). Other addresses of this Worker send people there.
+    if (!env.SHARED_DATA_ORIGIN && String(env.REDIRECT_HOSTS || '').split(',').map(s => s.trim()).filter(Boolean).includes(url.host))
+      // 301 lets clients turn a POST into a GET; 308 keeps the method for anything that is not a plain page view.
+      return Response.redirect(new URL(env.APP_ORIGIN).origin + url.pathname + url.search, ['GET', 'HEAD'].includes(request.method) ? 301 : 308);
     let activeOrigin;
     try{activeOrigin=frontendOrigin(url,env);}catch{return json(503,{error:'公開先の設定を確認してください。'});}
     if(!activeOrigin)return new Response('Not found',{status:404});
     if(activeOrigin!==env.APP_ORIGIN)env={...env,APP_ORIGIN:activeOrigin};
     const origin = new URL(env.APP_ORIGIN);
     if (secure(env) && url.protocol === 'http:') return Response.redirect(origin.origin + url.pathname + url.search, 301);
+    if (url.pathname === '/internal/restore') return withSecurityHeaders(await restore(request, env), env);
     let shared;
     try { shared=sharedDataConfig(env); } catch { return withSecurityHeaders(json(503,{error:'共通の保存先の設定を確認してください。'}),env); }
     if(shared){
       try { await ensureSharedReady(env,shared); } catch { return withSecurityHeaders(json(503,{error:'保存先の切替を確認中です。時間をおいてもう一度お試しください。'}),env); }
-      if(url.pathname==='/tobiyori-shared-entry.js')return withSecurityHeaders(new Response(sharedEntryScript(shared),{headers:{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'no-store'}}),env);
       if(url.pathname.startsWith('/api/')||url.pathname.startsWith('/media/'))return withSecurityHeaders(await forwardSharedData(request,shared),env);
     }
+    // After moving the old site's data here, URLs shared with the former independent IDs keep working.
+    let aliases=shared;
+    if(!aliases&&env.SHARED_DATA_ID_ALIASES)try{aliases=ownAliases(env);}catch{aliases=null;}
+    if(aliases&&url.pathname==='/tobiyori-shared-entry.js')return withSecurityHeaders(new Response(sharedEntryScript(aliases),{headers:{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'no-store'}}),env);
     if (url.pathname.startsWith('/api/')) return withSecurityHeaders(await api(request, env, ctx), env);
     if (url.pathname.startsWith('/media/')) return withSecurityHeaders(await serveMedia(request, env.MEDIA, ctx), env);
     if (['/', '/index.html', '/operator.html'].includes(url.pathname)) {
       if (!['GET', 'HEAD'].includes(request.method)) return new Response('Method not allowed', { status: 405 });
       const assetRequest=new Request(url.origin + '/index.html',request);
-      if(shared){assetRequest.headers.delete('If-None-Match');assetRequest.headers.delete('If-Modified-Since');}
+      if(aliases){assetRequest.headers.delete('If-None-Match');assetRequest.headers.delete('If-Modified-Since');}
       let response=await env.ASSETS.fetch(assetRequest);
       // The source HTML omits an explicit <head>; inject before its first script instead.
-      if(shared){let injected=false;response=new HTMLRewriter().on('script',{element(el){if(!injected){el.before('<script src="/tobiyori-shared-entry.js"></script>',{html:true});injected=true;}}}).transform(response);response=new Response(response.body,response);response.headers.delete('ETag');response.headers.delete('Last-Modified');}
+      if(aliases){let injected=false;response=new HTMLRewriter().on('script',{element(el){if(!injected){el.before('<script src="/tobiyori-shared-entry.js"></script>',{html:true});injected=true;}}}).transform(response);response=new Response(response.body,response);response.headers.delete('ETag');response.headers.delete('Last-Modified');}
       return withSecurityHeaders(response, env, true);
     }
     return withSecurityHeaders(await env.ASSETS.fetch(request), env);
@@ -287,6 +327,34 @@ export class TobiyoriDatabase extends DurableObject {
     } finally {
       await this.ctx.storage.setAlarm(Date.now() + ALARM_MS);
     }
+  }
+
+  async restoreFromBackup(key, replace) {
+    if (!this.env.BACKUPS) return { status: 500, error: 'BACKUPS バケットがありません。' };
+    const object = await this.env.BACKUPS.get(key);
+    if (!object) return { status: 404, error: key + ' が見つかりません。' };
+    let dump;
+    try { dump = JSON.parse(await object.text()); } catch { return { status: 400, error: 'バックアップをJSONとして読めません。' }; }
+    const saved = 'db/pre-restore-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+    // From the snapshot until the rows are replaced no other request may write, or its change would be in neither
+    // the pre-restore copy nor the restored data. Errors are returned, not thrown: a throw here would reset the object.
+    return this.ctx.blockConcurrencyWhile(async () => {
+      try {
+        try { await this.env.BACKUPS.put(saved, JSON.stringify(dumpDatabase(this.db)), { httpMetadata: { contentType: 'application/json' } }); }
+        catch (e) {
+          console.error(JSON.stringify({ event: 'restore-snapshot-failed', error: String(e?.message || e).slice(0, 300) }));
+          return { status: 500, error: '復元前のコピーを保存できなかったため、復元していません。' };
+        }
+        const result = restoreBackup(this.db, dump, { replace });
+        this.syncAdmins();
+        console.log(JSON.stringify({ event: 'restored', key, saved, counts: result.counts }));
+        return { ok: true, savedBefore: saved, ...result };
+      } catch (e) {
+        if (e.status) return { status: e.status, error: e.message, savedBefore: saved };
+        console.error(JSON.stringify({ event: 'restore-failed', error: String(e?.message || e).slice(0, 300) }));
+        return { status: 500, error: '復元に失敗しました。保存済みの復元前コピーは ' + saved + ' にあります。' };
+      }
+    });
   }
 
   // Daily logical backup to a private R2 bucket, in addition to Durable Object point-in-time recovery.

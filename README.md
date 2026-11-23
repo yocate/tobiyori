@@ -2,9 +2,11 @@
 
 群馬のコミュニティと活動を探し、参加前の疑問を解消して、申込みから参加記録まで確認できるWebアプリです。
 
-- 利用者画面：[tobiyori.hibinoba.com](https://tobiyori.hibinoba.com/)
-- 運営・コミュニティ担当者画面：[operator.html](https://tobiyori.hibinoba.com/operator.html)
-- ステージング：[tobiyori-staging.hibinoba.com](https://tobiyori-staging.hibinoba.com/)
+- 新サイトの利用者画面：[tobiyori.com](https://tobiyori.com/)
+- 新サイトの運営・コミュニティ担当者画面：[operator.html](https://tobiyori.com/operator.html)
+- 従来のサイト：[tobiyori.hibinoba.com](https://tobiyori.hibinoba.com/)（別の保存先）
+
+11月23日以降の新サイトは、自分たちのCloudflareと独立した保存先で運用します。公開時は[新サイトの公開手順](docs/own-production.md)を参照してください。旧サイト向けの既存設定を、新サイトの公開設定と混同しないでください。
 
 ## 主な使い方
 

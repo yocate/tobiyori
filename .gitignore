@@ -22,6 +22,7 @@
 !/waiting-room.cjs
 !/manage-tobiyori.cjs
 !/app.cjs
+!/restore-backup.cjs
 !/tx.cjs
 !/feedback.cjs
 !/activity-questions.cjs

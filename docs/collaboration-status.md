@@ -1,5 +1,7 @@
 # 引き継ぎ：2026年11月23日
 
+最新の公開方針は[新サイトの公開設定](own-production.md)。Claude Code側で自分たちの独立DBへ切替済みだったため、その変更を取り込み、入力保持の修正と統合した。以下の共有保存先・旧公開版の記述はそれ以前の確認記録で、現在の公開設定へ戻す指示ではない。
+
 - アプリの公開URL： https://tobiyori.com/
 - 運営者入口： https://tobiyori.com/operator.html
 - wwwと従来のworkers.dev入口も利用可能。
