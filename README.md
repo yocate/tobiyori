@@ -64,6 +64,8 @@ npm run cf:build
 
 ## 本番環境
 
+複数の公開URLで同じアカウント・申込み・定員・連絡板を扱う場合は、[共通データの設定](docs/shared-data.md)を参照してください。共有モードは明示設定した入口だけで有効になります。
+
 Cloudflare Workers、SQLite Durable Object、R2で動かします。構成、デプロイ、運用上の課題は [docs/cloudflare.md](docs/cloudflare.md) に記載しています。ステージングで確認してから本番に反映します。
 
 ```sh

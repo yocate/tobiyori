@@ -7,6 +7,7 @@ import ipModule from '../rate-limit-ip.cjs';
 import { DurableSqlite } from './do-sqlite.js';
 import { nodeRequest, nodeResponse } from './http-shim.js';
 import { extractMedia, serveMedia } from './media.js';
+import { sharedDataConfig, forwardSharedData, sharedEntryScript, prepareSharedCutover } from './shared-data.js';
 import csp from '../dist/csp.json';
 
 const { createApp, localHasher } = appModule;
@@ -16,6 +17,7 @@ const MAX_BODY = 4 * 1024 * 1024;
 const ALARM_MS = 60_000;
 const BACKUP_MS = 24 * 3600_000;
 const BACKUP_SKIP = new Set(['sessions', 'google_flows']);
+const sharedReadiness = new Map();
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 const rateLimited = () => {
@@ -49,12 +51,29 @@ function withSecurityHeaders(response, env, html = false) {
   if (html) {
     r.headers.set('Content-Security-Policy', contentSecurityPolicy(env));
     r.headers.set('X-Frame-Options', 'DENY');
-    r.headers.set('Cache-Control', 'no-cache');
+    r.headers.set('Cache-Control', env.SHARED_DATA_ORIGIN ? 'no-store' : 'no-cache');
   }
   return r;
 }
 
 const database = env => env.DB.get(env.DB.idFromName('primary'), { locationHint: env.DB_LOCATION_HINT || 'apac' });
+async function ensureSharedReady(env, shared) {
+  const key=JSON.stringify([env.APP_ORIGIN,env.CF_VERSION?.id,shared]);
+  if(!sharedReadiness.has(key)){
+    const promise=(async()=>{
+      // The version-aware HTTP ping upgrades a live object before invoking the new RPC method.
+      for(let attempt=0;;attempt++){
+        try {
+          const headers=new Headers();if(env.CF_VERSION?.id)headers.set(INTERNAL+'version',`${env.CF_VERSION.id} ${env.CF_VERSION.timestamp||''}`);
+          await database(env).fetch(new Request(new URL('/api/health',env.APP_ORIGIN),{headers}));
+          await database(env).prepareSharedData();return;
+        } catch(e) {if(attempt>=2)throw e;await new Promise(r=>setTimeout(r,100*(attempt+1)));}
+      }
+    })();
+    sharedReadiness.set(key,promise);promise.catch(()=>sharedReadiness.delete(key));
+  }
+  await sharedReadiness.get(key);
+}
 
 // Reads at most MAX_BODY bytes, cancelling the stream as soon as it is exceeded (Content-Length may be absent).
 async function readBody(request) {
@@ -148,11 +167,23 @@ export default {
     const origin = new URL(env.APP_ORIGIN);
     if (url.host !== origin.host) return new Response('Not found', { status: 404 });
     if (secure(env) && url.protocol === 'http:') return Response.redirect(origin.origin + url.pathname + url.search, 301);
+    let shared;
+    try { shared=sharedDataConfig(env); } catch { return withSecurityHeaders(json(503,{error:'共通の保存先の設定を確認してください。'}),env); }
+    if(shared){
+      try { await ensureSharedReady(env,shared); } catch { return withSecurityHeaders(json(503,{error:'保存先の切替を確認中です。時間をおいてもう一度お試しください。'}),env); }
+      if(url.pathname==='/tobiyori-shared-entry.js')return withSecurityHeaders(new Response(sharedEntryScript(shared),{headers:{'Content-Type':'text/javascript; charset=utf-8','Cache-Control':'no-store'}}),env);
+      if(url.pathname.startsWith('/api/')||url.pathname.startsWith('/media/'))return withSecurityHeaders(await forwardSharedData(request,shared),env);
+    }
     if (url.pathname.startsWith('/api/')) return withSecurityHeaders(await api(request, env, ctx), env);
     if (url.pathname.startsWith('/media/')) return withSecurityHeaders(await serveMedia(request, env.MEDIA, ctx), env);
     if (['/', '/index.html', '/operator.html'].includes(url.pathname)) {
       if (!['GET', 'HEAD'].includes(request.method)) return new Response('Method not allowed', { status: 405 });
-      return withSecurityHeaders(await env.ASSETS.fetch(new Request(url.origin + '/index.html', request)), env, true);
+      const assetRequest=new Request(url.origin + '/index.html',request);
+      if(shared){assetRequest.headers.delete('If-None-Match');assetRequest.headers.delete('If-Modified-Since');}
+      let response=await env.ASSETS.fetch(assetRequest);
+      // The source HTML omits an explicit <head>; inject before its first script instead.
+      if(shared){let injected=false;response=new HTMLRewriter().on('script',{element(el){if(!injected){el.before('<script src="/tobiyori-shared-entry.js"></script>',{html:true});injected=true;}}}).transform(response);response=new Response(response.body,response);response.headers.delete('ETag');response.headers.delete('Last-Modified');}
+      return withSecurityHeaders(response, env, true);
     }
     return withSecurityHeaders(await env.ASSETS.fetch(request), env);
   },
@@ -179,6 +210,8 @@ export class TobiyoriDatabase extends DurableObject {
         release: env.CF_VERSION?.id || 'unknown',
       });
       this.syncAdmins();
+      // Clearing SHARED_DATA_ORIGIN is an explicit rollback; retain the backup and unlock the original DB.
+      if(!env.SHARED_DATA_ORIGIN)await ctx.storage.delete('shared-data:cutover');
       // One-off (2026-10-16): remove feedback rows sent by deployment checks, matched by their exact text.
       // Safe to delete this line after it has run once in production.
       this.db.prepare("DELETE FROM app_feedback WHERE role='guest' AND body IN ('デプロイ確認（運営による自動テスト）','Cloudflare確認用のご意見')").run();
@@ -209,6 +242,9 @@ export class TobiyoriDatabase extends DurableObject {
     const [wantedId, wantedAt] = (request.headers.get(INTERNAL + 'version') || '').split(' ');
     const own = this.env.CF_VERSION;
     if (wantedId && own?.id && wantedId !== own.id && Date.parse(wantedAt) > Date.parse(own.timestamp)) this.ctx.abort('code updated');
+    if(request.method==='GET'&&new URL(request.url).pathname==='/api/health')return json(200,{ok:true,app:'tobiyori'});
+    // Stale Worker instances cannot append to the independent database after the cutover snapshot.
+    if(await this.ctx.storage.get('shared-data:cutover'))return json(503,{error:'保存先が切り替わりました。ページを再読み込みしてください。'});
     const req = await nodeRequest(request);
     const { res, toResponse } = nodeResponse();
     if ((await this.app.handle(req, res)) === false) return json(404, { error: 'ページが見つかりません。' });
@@ -218,6 +254,12 @@ export class TobiyoriDatabase extends DurableObject {
   // RPC from the Worker for login: the stored hash never leaves Cloudflare's internal network.
   credential(email) {
     return this.db.prepare('SELECT password_hash FROM accounts WHERE email=?').get(email)?.password_hash ?? null;
+  }
+
+  async prepareSharedData() {
+    const shared=sharedDataConfig(this.env);
+    if(!shared)throw new Error('共通の保存先が設定されていません。');
+    return this.ctx.blockConcurrencyWhile(()=>prepareSharedCutover(this.db,this.ctx.storage,this.env.BACKUPS,shared));
   }
 
   async alarm() {
