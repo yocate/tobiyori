@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([string]$Task='AGENTS.mdとdocs/collaboration-status.mdを読み、トビヨリの現状を把握してください。まだファイルを変更せず、次の依頼を待ってください。')
 $ErrorActionPreference='Stop'
 $repoRoot=Split-Path $PSScriptRoot -Parent
