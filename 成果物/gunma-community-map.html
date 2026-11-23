@@ -1087,6 +1087,7 @@ async function accountAPI(url, method='GET', data) {
   const response = await fetch('/api/'+url, {method, credentials:'same-origin',cache:'no-store',headers,body:data?JSON.stringify(data):undefined});
   const result = await response.json();
   if(!response.ok){if(response.status===429)accountRetryUntil=Date.now()+Math.max(1,Number(response.headers.get('Retry-After'))||60)*1000;throw Object.assign(new Error(result.error || '接続できませんでした。'),{status:response.status});}
+  if(method!=='GET')window.TobiyoriLiveSync?.changed(['login','logout','register'].includes(url));
   return result;
 }
 function accountNotice() {
@@ -1205,29 +1206,90 @@ window.addEventListener('beforeunload',e=>{if(pendingAccountState||accountSaving
 
 
 
+/* Live updates carry no message bodies or account IDs. Normal authenticated APIs supply the data. */
+(function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.TobiyoriAutoSync=factory();})(typeof globalThis!=='undefined'?globalThis:this,function(){
+ function create(adapter,env){
+  env=env||window;let timer,reconnect,heartbeat,socket,stopped=false,busy=false,again=false,connected=false,account='',failures=0,lastCapabilities=0,capable=false;
+  const now=()=>env.Date?env.Date.now():Date.now(),visible=()=>env.document.visibilityState!=='hidden';
+  const channel=typeof env.BroadcastChannel==='function'?new env.BroadcastChannel('tobiyori-live-updates'):null;
+  const context=()=>JSON.stringify(adapter.context());
+  function later(ms){env.clearTimeout(timer);if(!stopped)timer=env.setTimeout(run,Math.max(ms,adapter.retryUntil()-now(),0));}
+  function kick(){if(busy){again=true;return;}later(0);}
+  function closeSocket(){connected=false;env.clearTimeout(reconnect);env.clearInterval(heartbeat);const old=socket;socket=null;if(old){old.onclose=null;old.onerror=null;try{old.close();}catch{}}}
+  async function connect(){
+   if(stopped||!adapter.ready()||!visible())return;
+   if(now()-lastCapabilities>60000||!lastCapabilities){lastCapabilities=now();try{capable=!!(await adapter.capabilities()).liveUpdates;}catch{capable=false;}}
+   if(!capable||socket||typeof env.WebSocket!=='function')return;
+   const url=new URL('/api/live/updates',env.location.href);url.protocol=url.protocol==='https:'?'wss:':'ws:';
+   const ws=new env.WebSocket(url.href);socket=ws;
+   ws.onopen=()=>{if(socket!==ws)return;connected=true;failures=0;kick();heartbeat=env.setInterval(()=>{if(socket===ws&&ws.readyState===1)ws.send('ping');},25000);};
+   ws.onmessage=e=>{if(socket!==ws)return;try{const value=JSON.parse(e.data);if(value.type==='auth-changed'){closeSocket();adapter.authChanged();lastCapabilities=0;kick();}else if(value.type==='invalidate'||value.type==='connected')kick();}catch{}};
+   ws.onerror=()=>{};
+   ws.onclose=e=>{if(socket!==ws)return;socket=null;connected=false;env.clearInterval(heartbeat);if(e.code===4001)adapter.authChanged();failures++;reconnect=env.setTimeout(connect,Math.min(30000,1000*2**Math.min(failures,5)));kick();};
+  }
+  async function run(){
+   if(stopped)return;if(busy){again=true;return;}
+   if(!visible()||!adapter.ready()){later(2000);return;}
+   if(now()<adapter.retryUntil()){later(adapter.retryUntil()-now());return;}
+   busy=true;const before=context(),signature=adapter.signature();again=false;
+   try{
+    const currentAccount=adapter.context().account;if(account!==currentAccount){account=currentAccount;closeSocket();lastCapabilities=0;}
+    await connect();await adapter.refresh();
+    if(before!==context())return;
+    if(signature!==adapter.signature())adapter.render();
+    await adapter.room();failures=0;
+   }catch{failures++;}
+   finally{busy=false;later(again?0:failures?Math.min(30000,2000*2**Math.min(failures,4)):connected?30000:2000);}
+  }
+  function changed(auth=false){if(auth){closeSocket();lastCapabilities=0;}channel?.postMessage({type:'changed',auth:!!auth});kick();}
+  if(channel)channel.onmessage=e=>{if(e.data?.type!=='changed')return;if(e.data.auth){closeSocket();adapter.authChanged();lastCapabilities=0;}kick();};
+  const resume=()=>{if(visible()){lastCapabilities=0;kick();}};
+  env.document.addEventListener('visibilitychange',resume);env.addEventListener('focus',resume);env.addEventListener('online',resume);env.addEventListener('hashchange',kick);
+  later(0);
+  return {changed,kick,stop(){stopped=true;env.clearTimeout(timer);closeSocket();channel?.close();env.document.removeEventListener('visibilitychange',resume);env.removeEventListener('focus',resume);env.removeEventListener('online',resume);env.removeEventListener('hashchange',kick);}};
+ }
+
+ // Keep the actual edited nodes, including FileLists and existing event handlers, across a redraw.
+ function renderPreservingInput(render,doc,win){
+  const app=doc.getElementById('app');if(!app)return render();
+  const active=doc.activeElement,selection=active&&'selectionStart'in active?{start:active.selectionStart,end:active.selectionEnd,direction:active.selectionDirection}:null;
+  const key=form=>form.id||Array.from(form.attributes).filter(a=>a.name.startsWith('data-')&&a.name!=='data-auto-sync-dirty').map(a=>a.name+'='+a.value).sort().join('|');
+  const forms=Array.from(app.querySelectorAll('form')).map(form=>({form,key:key(form)})).filter(v=>v.key&&(v.form.dataset.autoSyncDirty==='true'||v.form.contains(active)||Array.from(v.form.querySelectorAll('input[type=file]')).some(f=>f.files?.length)));
+  const loose=active&&app.contains(active)&&!active.closest('form')&&active.id?active:null;
+  const details=Array.from(app.querySelectorAll('details')).map((node,index)=>({index,label:node.querySelector('summary')?.textContent,open:node.open}));
+  const sx=win.scrollX,sy=win.scrollY;render();
+  const targets=Array.from(app.querySelectorAll('form')).map(form=>({form,key:key(form)}));
+  for(const old of forms){const target=targets.find(v=>v.key===old.key);if(target)target.form.replaceWith(old.form);}
+  if(loose){const replacement=doc.getElementById(loose.id);if(replacement&&app.contains(replacement))replacement.replaceWith(loose);}
+  if(active&&app.contains(active)&&active.isConnected){try{active.focus({preventScroll:true});if(selection&&typeof active.setSelectionRange==='function')active.setSelectionRange(selection.start,selection.end,selection.direction);}catch{}}
+  const current=Array.from(app.querySelectorAll('details'));for(const old of details)if(current[old.index]?.querySelector('summary')?.textContent===old.label)current[old.index].open=old.open;
+  win.scrollTo(sx,sy);
+ }
+ return {create,renderPreservingInput};
+});
+
 /* Server-backed communities and participation. Sample records remain separate. */
 let LIVE={catalog:{communities:[],activities:[]},dashboard:null,review:null,loaded:false,error:''};
 let liveQuery='';
 let liveRequest=0,liveRecordFilter='all',liveOnlyFollowed=false,liveBackgroundBusy=false;
 const liveStatus={PENDING:'団体を確認中',VERIFIED:'運営確認済み',SUSPENDED:'掲載停止',DRAFT:'下書き',REVIEW:'募集を審査中',PUBLISHED:'募集中',CLOSED:'募集終了',APPLIED:'申込み済み（承認待ち）',APPROVED:'参加確定',DECLINED:'受入れ不可',CANCELLED:'取消済み',EXPIRED:'受付終了',DONE:'参加完了'};
 function clearLivePrivate(){liveApprovalSearch={review:{query:'',status:''},participants:{query:'',status:''}};liveRequest++;LIVE.dashboard=null;LIVE.review=null;liveOnlyFollowed=false;clearSerendipity();clearWaitingRooms();}
-async function refreshLive(redraw=true,{background=false}={}){
+async function refreshLive(redraw=true,{background=false,fresh=false,quiet=false}={}){
  if(background&&(liveBackgroundBusy||Date.now()<accountRetryUntil))return;
  if(background)liveBackgroundBusy=true;
  const epoch=accountEpoch,uid=accountUser?.id,request=++liveRequest;
  try{
-   const visit=uid&&!OPERATOR_APP?await recordDailyVisit(false):null;
-   const fetchCatalog=!background||!LIVE.catalogFetchedAt||Date.now()-LIVE.catalogFetchedAt>=120000||LIVE.catalogUserId!==uid;
-   const catalog=fetchCatalog?await accountAPI('live/catalog'):LIVE.catalog;
-   const catalogFetchedAt=fetchCatalog?Date.now():LIVE.catalogFetchedAt;
-   const dashboard=uid?await accountAPI('live/dashboard'):null;
-   const review=OPERATOR_APP&&dashboard?.role==='ADMIN'?await accountAPI('live/review'):null;
-   const feedbackNew=OPERATOR_APP&&dashboard?.role==='ADMIN'?(await accountAPI('feedback/summary').catch(()=>null))?.newCount||0:0;
-   if(request!==liveRequest||epoch!==accountEpoch||uid!==accountUser?.id)return;
-   LIVE={catalog,dashboard,review,feedbackNew,loaded:true,error:'',fetchedAt:Date.now(),catalogFetchedAt,catalogUserId:uid};
-   showDailyVisitNotice(visit);
- }catch(e){if(request!==liveRequest||epoch!==accountEpoch||uid!==accountUser?.id)return;LIVE.loaded=true;LIVE.error=e.message||'募集を読み込めませんでした。';if([401,403,409].includes(e.status)){clearLivePrivate();}}finally{if(background)liveBackgroundBusy=false;}
- accountNotice();
+  const visit=uid&&!OPERATOR_APP&&!background?await recordDailyVisit(false):null;
+  const fetchCatalog=fresh||!background||!LIVE.catalogFetchedAt||Date.now()-LIVE.catalogFetchedAt>=120000||LIVE.catalogUserId!==uid;
+  const [catalog,dashboard]=await Promise.all([fetchCatalog?accountAPI('live/catalog'):LIVE.catalog,uid?accountAPI('live/dashboard'):null]);
+  const catalogFetchedAt=fetchCatalog?Date.now():LIVE.catalogFetchedAt;
+  const review=OPERATOR_APP&&dashboard?.role==='ADMIN'?await accountAPI('live/review'):null;
+  const feedbackNew=OPERATOR_APP&&dashboard?.role==='ADMIN'?(await accountAPI('feedback/summary').catch(()=>null))?.newCount||0:0;
+  if(request!==liveRequest||epoch!==accountEpoch||uid!==accountUser?.id)return;
+  LIVE={catalog,dashboard,review,feedbackNew,loaded:true,error:'',errorStatus:0,fetchedAt:Date.now(),catalogFetchedAt,catalogUserId:uid};
+  if(!quiet)showDailyVisitNotice(visit);
+ }catch(e){if(request!==liveRequest||epoch!==accountEpoch||uid!==accountUser?.id)return;LIVE.loaded=true;LIVE.error=e.message||'募集を読み込めませんでした。';LIVE.errorStatus=e.status||0;if([401,403,409].includes(e.status))clearLivePrivate();}finally{if(background)liveBackgroundBusy=false;}
+ if(!quiet)accountNotice();
  if(redraw)render();
 }
 function liveUnreadCount(){return LIVE.dashboard?.unreadBySurface?.[OPERATOR_APP?'operator':'user']??surfaceNotifications().filter(n=>!n.is_read).length;}
@@ -1803,17 +1865,52 @@ function openLiveApply(aid,kind){
  openModal(`<div class="modal-head"><h3>${escapeHtml(kind||'参加')}の申込み</h3><button class="modal-close" data-modal-close>✕</button></div><p>登録された団体へ、ニックネームと次の内容を送信します。</p>${applyStepsHTML()}<form id="liveApplyForm">${kind?'':`<fieldset class="apply-kind-choice"><legend>参加のしかた</legend>${Object.entries(APPLY_KINDS).map(([k,desc],i)=>`<label><input type="radio" name="kind" value="${k}" required ${activity.highSchoolParticipation==='visit'&&k==='見学'||i===1&&activity.highSchoolParticipation!=='visit'?'checked':''}><span><b>${k}</b><small>${desc}</small></span></label>`).join('')}${activity.highSchoolParticipation==='visit'?'<p class="hint">高校生は見学のみ申し込めます。</p>':''}</fieldset>`}<label>学年・参加区分<select name="year" required><option value="">選択してください</option>${discoveryOptions(['高校生',...STUDENT_YEARS,'地域住民・その他'],DB.profile.year||'')}</select></label><p>${HIGH_SCHOOL_LABELS[activity.highSchoolParticipation]||HIGH_SCHOOL_LABELS.unknown}</p>${liveField('message','自己紹介・質問（任意）','','textarea')}${activity.participationScope==='members'?'<label class="account-consent"><input name="memberConfirmed" type="checkbox" required><span>この団体に所属しています（所属メンバーのみの活動です）</span></label>':''}<label class="account-consent"><input name="minor" type="checkbox" ${knownMinor?'checked disabled':''}><span>18歳未満です${knownMinor?'（登録した生年月日から判定）':''}</span></label><label class="account-consent"><input name="guardian" type="checkbox" ${knownMinor?'required':''}><span>18歳未満の場合：保護者の同意を得ています。団体の確認手続きにも協力します。</span></label><p class="live-form-error" role="alert"></p><button class="btn btn-primary">申し込む</button></form>`,root=>{const f=root.querySelector('form');f.elements.minor.onchange=()=>{f.elements.guardian.required=knownMinor||f.elements.minor.checked;};f.onsubmit=async e=>{e.preventDefault();const b=f.querySelector('button');b.disabled=true;try{await accountAPI('live/apply/'+aid,'POST',{kind:kind||f.elements.kind.value,year:f.elements.year.value,message:f.elements.message.value,minor:f.elements.minor.checked,guardian:f.elements.guardian.checked,memberConfirmed:!!f.elements.memberConfirmed?.checked});await refreshLive(false);closeModal();nav('myactivity');toast('申込みを団体へ送りました');}catch(e){f.querySelector('.live-form-error').textContent=e.message;b.disabled=false;}};});
 }
 function liveVerificationHTML(c){return '<section class="live-verification"><h2>団体情報の確認状況</h2>'+(c.verification?'<p>'+escapeHtml(c.verification.checkedBy)+'が '+escapeHtml(liveDate(c.verification.checkedAt))+' に確認</p><div class="live-navigation">'+c.verification.items.map(item=>'<span class="badge badge-neutral">✓ '+escapeHtml(item)+'</span>').join('')+'</div>':'<p>詳しい確認項目は運営が整理中です。</p>')+'<p class="hint">確認状況は、参加人数・口コミ・ポイントとは別の情報です。確認済みでも、活動の安全を保証するものではありません。</p></section>';}
+let liveRoomOpenRequest=0;
+function liveRoomMessagesHTML(room){return room.messages.map(m=>`<div class="live-message ${m.sender_id===accountUser?.id?'mine':''}"><b>${escapeHtml(m.nickname)}${m.isStaff?'（担当者）':''}</b><p class="live-copy">${escapeHtml(m.body)}</p><small>${escapeHtml(liveDate(m.created_at))}</small></div>`).join('')||'<p>まだ投稿はありません。担当者への質問や、参加に必要な連絡を書けます。</p>';}
+function liveRoomPermission(root,canSend,message=''){
+ root.dataset.canSend=String(canSend);const form=root.querySelector('#liveRoomForm'),status=root.querySelector('[data-room-sync-status]');
+ if(form)for(const el of form.elements)el.disabled=!canSend||form.dataset.sending==='true';
+ if(status)status.textContent=message||(canSend?'最新の投稿を自動で確認しています。':'現在、新しい投稿は停止しています。過去の連絡は確認できます。');
+}
+async function refreshOpenLiveRoom(){
+ const root=document.querySelector('#modalRoot .modal[data-live-room-id]');if(!root)return;
+ const epoch=accountEpoch,uid=accountUser?.id,aid=root.dataset.liveRoomId,request=String(Number(root.dataset.syncRequest||0)+1);root.dataset.syncRequest=request;
+ try{
+  const room=await accountAPI('live/activity-messages/'+aid);
+  if(!root.isConnected||epoch!==accountEpoch||uid!==accountUser?.id||root.dataset.syncRequest!==request)return;
+  const list=root.querySelector('.live-message-list'),signature=JSON.stringify([room.messages,room.canSend]);
+  if(list&&root.dataset.syncSignature!==signature){
+   const previousHeight=list.offsetHeight,top=root.scrollTop,atBottom=root.scrollHeight-root.clientHeight-root.scrollTop<40,typing=root.querySelector('#liveRoomForm')?.contains(document.activeElement);
+   list.innerHTML=liveRoomMessagesHTML(room);root.dataset.syncSignature=signature;
+   if(typing)root.scrollTop=top+list.offsetHeight-previousHeight;else if(atBottom)root.scrollTop=root.scrollHeight;else root.scrollTop=top;
+  }
+  liveRoomPermission(root,room.canSend);
+ }catch(e){
+  if(!root.isConnected||epoch!==accountEpoch||root.dataset.syncRequest!==request)return;
+  if([401,403,404].includes(e.status)){root.querySelector('.live-message-list')?.replaceChildren();delete root.dataset.syncSignature;liveRoomPermission(root,false,e.status===401?'ログインし直してください。':'この連絡板は現在閲覧できません。');}
+  else{const status=root.querySelector('[data-room-sync-status]');if(status)status.textContent='通信が戻ると、自動で新しい投稿を確認します。入力中の文章は保持しています。';}
+ }
+}
 async function openLiveRoom(aid,draft=''){
- const epoch=accountEpoch;
- try{const room=await accountAPI('live/activity-messages/'+aid);if(epoch!==accountEpoch)return;
- openModal(`<div class="modal-head"><h3>活動の連絡板</h3><button class="modal-close" data-modal-close aria-label="閉じる">✕</button></div><p><b>${escapeHtml(room.title)}</b></p><p class="hint">団体の窓口と、この活動の承認済み参加者が読む連絡板です。個人宛てには送れません。本名・電話番号・個人SNSは書かないでください。</p><button class="btn btn-ghost btn-sm" id="liveRoomRefresh">最新の投稿を読む</button><div class="live-message-list">${room.messages.map(m=>`<div class="live-message ${m.sender_id===accountUser.id?'mine':''}"><b>${escapeHtml(m.nickname)}${m.isStaff?'（担当者）':''}</b><p class="live-copy">${escapeHtml(m.body)}</p><small>${escapeHtml(liveDate(m.created_at))}</small></div>`).join('')||'<p>まだ投稿はありません。担当者への質問や、参加に必要な連絡を書けます。</p>'}</div>${room.canSend?`<form id="liveRoomForm">${liveField('body','活動の連絡内容',draft,'textarea',true)}<p class="live-form-error" role="alert"></p><button class="btn btn-primary">連絡板に投稿する</button></form>`:'<p>現在、新しい投稿は停止しています。過去の連絡は確認できます。</p>'}`,root=>{
- const f=root.querySelector('form');root.querySelector('#liveRoomRefresh').onclick=()=>openLiveRoom(aid,f?.elements.body.value||'');
- if(f)f.onsubmit=async e=>{e.preventDefault();const b=f.querySelector('button');b.disabled=true;try{await accountAPI('live/activity-messages/'+aid,'POST',{body:f.elements.body.value});await refreshLive(false);if(epoch===accountEpoch)await openLiveRoom(aid);}catch(e){f.querySelector('.live-form-error').textContent=e.message;b.disabled=false;}};
- });}catch(e){toast(e.message);}
+ const epoch=accountEpoch,request=++liveRoomOpenRequest,container=document.getElementById('modalRoot'),previous=container.firstElementChild;
+ try{
+  const room=await accountAPI('live/activity-messages/'+aid);if(epoch!==accountEpoch||request!==liveRoomOpenRequest||container.firstElementChild!==previous)return;
+  openModal(`<div class="modal-head"><h3>活動の連絡板</h3><button class="modal-close" data-modal-close aria-label="閉じる">✕</button></div><p><b>${escapeHtml(room.title)}</b></p><p class="hint">団体の窓口と、この活動の承認済み参加者が読む連絡板です。個人宛てには送れません。本名・電話番号・個人SNSは書かないでください。</p><button class="btn btn-ghost btn-sm" id="liveRoomRefresh">最新の投稿を読む</button><p class="hint" data-room-sync-status role="status"></p><div class="live-message-list">${liveRoomMessagesHTML(room)}</div><form id="liveRoomForm">${liveField('body','活動の連絡内容',draft,'textarea',true)}<p class="live-form-error" role="alert"></p><button class="btn btn-primary">連絡板に投稿する</button></form>`,outer=>{
+   const root=outer.querySelector('.modal'),form=root.querySelector('#liveRoomForm');root.dataset.liveRoomId=aid;root.dataset.syncSignature=JSON.stringify([room.messages,room.canSend]);liveRoomPermission(root,room.canSend);
+   root.querySelector('#liveRoomRefresh').onclick=()=>refreshOpenLiveRoom();
+   form.onsubmit=async e=>{
+    e.preventDefault();if(root.dataset.canSend!=='true'||form.dataset.sending==='true')return;
+    const sent=form.elements.body.value;form.dataset.sending='true';form.querySelector('.live-form-error').textContent='';liveRoomPermission(root,true);
+    try{await accountAPI('live/activity-messages/'+aid,'POST',{body:sent});if(epoch!==accountEpoch||!root.isConnected)return;if(form.elements.body.value===sent)form.elements.body.value='';await refreshLive(false);await refreshOpenLiveRoom();}
+    catch(error){if(root.isConnected)form.querySelector('.live-form-error').textContent=error.message;}
+    finally{form.dataset.sending='false';if(root.isConnected)liveRoomPermission(root,root.dataset.canSend==='true');}
+   };
+  });
+ }catch(e){if(request===liveRoomOpenRequest&&container.firstElementChild===previous)toast(e.message);}
 }
 function openLiveDecision(button){const action=button.dataset.liveApp;openModal(`<div class="modal-head"><h3>${escapeHtml(button.textContent)}</h3><button class="modal-close" data-modal-close>✕</button></div><p>申込み状況を更新し、相手にサービス内で通知します。</p><form id="liveDecisionForm">${action==='approve'&&button.dataset.minor==='true'?'<label class="account-consent"><input name="guardian" type="checkbox" required><span>保護者同意の手続きを確認しました。</span></label>':''}<button class="btn btn-primary">確定する</button></form>`,root=>{root.querySelector('form').onsubmit=async e=>{e.preventDefault();if(await liveAction('applications/'+button.dataset.id+'/'+action,{guardianChecked:!!e.target.elements.guardian?.checked},e.target.querySelector('button'))){closeModal();render();}};});}
 function openLiveReview(button){openModal(`<div class="modal-head"><h3>${escapeHtml(button.textContent)}</h3><button class="modal-close" data-modal-close>✕</button></div><form id="liveReviewForm">${liveField('note','確認方法・内容、または理由（団体にも通知）','','textarea',true)}${button.dataset.liveReview==='community'&&button.dataset.action==='approve'?'<label class="account-consent"><input name="identity" type="checkbox" required><span>代表者の本人確認と、団体の活動実態・目的を確認し、禁止する勧誘が目的ではないことを確かめました。</span></label><label class="account-consent"><input name="consent" type="checkbox" required><span>団体から紹介文・写真・リンクの掲載同意を得ていることを確認しました。</span></label>':''}<button class="btn btn-primary">記録して確定する</button></form>`,root=>{root.querySelector('form').onsubmit=async e=>{e.preventDefault();if(await liveAction('review/'+button.dataset.id+'/'+button.dataset.action,{type:button.dataset.liveReview,note:e.target.elements.note.value,identityChecked:!!e.target.elements.identity?.checked,consentChecked:!!e.target.elements.consent?.checked},e.target.querySelector('button'))){closeModal();render();}};});}
-setInterval(()=>{if(ACCOUNT_SERVER&&accountReady&&document.visibilityState==='visible')void refreshLive(false,{background:true});},60000);
+/* Updated by startLiveAutoSync. */
 
 
 /* Separate participant and operator surfaces; server permissions remain authoritative. */
@@ -4263,6 +4360,31 @@ function connectionContinueHTML(inRecords=false){
 }
 
 /* End connection journey */
+
+function liveSyncIdentity(){return {account:String(accountEpoch)+':'+(accountUser?.id||''),route:current.view+'/'+(current.param||'')};}
+function liveSyncSignature(){return JSON.stringify([LIVE.catalog,LIVE.dashboard,LIVE.review,LIVE.feedbackNew,LIVE.error]);}
+function liveHandleAuthChange(){
+ accountEpoch++;accountUser=null;clearLivePrivate();DB=defaultStore();pendingAccountState=null;accountRevision=0;accountError='';accountReady=false;closeModal();void startAccount();
+}
+function liveSafeRender(){
+ const mapView=activeCircleMap?{center:activeCircleMap.getCenter(),zoom:activeCircleMap.getZoom()}:null;
+ TobiyoriAutoSync.renderPreservingInput(()=>{accountNotice();render();},document,window);
+ if(mapView&&activeCircleMap)activeCircleMap.setView(mapView.center,mapView.zoom,{animate:false});
+}
+function startLiveAutoSync(){
+ if(!ACCOUNT_SERVER)return;
+ const mark=e=>{if(e.target?.closest?.('#app')){const form=e.target.closest('form');if(form)form.dataset.autoSyncDirty='true';}};
+ document.addEventListener('input',mark,true);document.addEventListener('change',mark,true);
+ window.TobiyoriLiveSync=TobiyoriAutoSync.create({
+  ready:()=>ACCOUNT_SERVER&&accountReady,
+  context:liveSyncIdentity,signature:liveSyncSignature,
+  retryUntil:()=>accountRetryUntil,
+  capabilities:()=>accountAPI('health'),
+  refresh:async()=>{await refreshLive(false,{background:true,fresh:true,quiet:true});if(LIVE.errorStatus===401||LIVE.errorStatus===409&&/ログイン状態/.test(LIVE.error)){liveHandleAuthChange();return;}if(LIVE.error){if(LIVE.errorStatus===403)closeModal();liveSafeRender();throw new Error('retry later');}},
+  render:liveSafeRender,room:refreshOpenLiveRoom,authChanged:liveHandleAuthChange
+ });
+}
+startLiveAutoSync();
 
 /* ---------------- Boot ---------------- */
 parseHash();

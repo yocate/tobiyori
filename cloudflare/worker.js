@@ -8,6 +8,7 @@ import { DurableSqlite } from './do-sqlite.js';
 import { nodeRequest, nodeResponse } from './http-shim.js';
 import { extractMedia, serveMedia } from './media.js';
 import { sharedDataConfig, forwardSharedData, sharedEntryScript, prepareSharedCutover } from './shared-data.js';
+import { notificationCursor, publicMutation, openLiveSocket, broadcastLiveUpdates, liveSocketMessage } from './live-updates.js';
 import csp from '../dist/csp.json';
 
 const { createApp, localHasher } = appModule;
@@ -35,14 +36,14 @@ function contentSecurityPolicy(env) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src https://fonts.gstatic.com",
     `img-src 'self' data: blob: ${env.MAP_TILE_ORIGIN || 'https://tile.openstreetmap.org'}`,
-    "connect-src 'self' https://cloudflareinsights.com",
+    `connect-src 'self' ${new URL(env.APP_ORIGIN).origin.replace(/^http/, 'ws')} https://cloudflareinsights.com`,
     "frame-ancestors 'none'", "base-uri 'none'", "object-src 'none'", "form-action 'self'",
     ...(secure(env) ? ['upgrade-insecure-requests'] : []),
   ].join('; ');
 }
 
 function withSecurityHeaders(response, env, html = false) {
-  const r = new Response(response.body, response);
+  const r = new Response(response.body, {status:response.status,statusText:response.statusText,headers:response.headers,...(response.webSocket?{webSocket:response.webSocket}:{})});
   r.headers.set('X-Content-Type-Options', 'nosniff');
   r.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   r.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self), payment=()');
@@ -242,14 +243,23 @@ export class TobiyoriDatabase extends DurableObject {
     const [wantedId, wantedAt] = (request.headers.get(INTERNAL + 'version') || '').split(' ');
     const own = this.env.CF_VERSION;
     if (wantedId && own?.id && wantedId !== own.id && Date.parse(wantedAt) > Date.parse(own.timestamp)) this.ctx.abort('code updated');
-    if(request.method==='GET'&&new URL(request.url).pathname==='/api/health')return json(200,{ok:true,app:'tobiyori'});
+    const path=new URL(request.url).pathname;
+    if(request.method==='GET'&&path==='/api/health')return json(200,{ok:true,app:'tobiyori',liveUpdates:true});
     // Stale Worker instances cannot append to the independent database after the cutover snapshot.
     if(await this.ctx.storage.get('shared-data:cutover'))return json(503,{error:'保存先が切り替わりました。ページを再読み込みしてください。'});
+    if(path==='/api/live/updates')return openLiveSocket(request,this.env,this.ctx,this.db,this.app);
     const req = await nodeRequest(request);
+    const mutation=!['GET','HEAD'].includes(request.method),actor=mutation?this.app.userFor(req):null,cursor=mutation?notificationCursor(this.db):0;
     const { res, toResponse } = nodeResponse();
     if ((await this.app.handle(req, res)) === false) return json(404, { error: 'ページが見つかりません。' });
-    return toResponse();
+    const response=toResponse();
+    if(mutation&&response.status<300)broadcastLiveUpdates(this.ctx,this.db,{actorId:actor?.id,cursor,publicChanged:publicMutation(path)});
+    return response;
   }
+
+  webSocketMessage(socket,message){liveSocketMessage(socket,message,this.db);}
+  webSocketClose(socket){try{socket.close(1000,'接続を終了しました');}catch{}}
+  webSocketError(socket){try{socket.close(1011,'接続を開き直してください');}catch{}}
 
   // RPC from the Worker for login: the stored hash never leaves Cloudflare's internal network.
   credential(email) {

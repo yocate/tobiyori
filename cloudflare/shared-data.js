@@ -22,8 +22,10 @@ export async function forwardSharedData(request, config, fetcher = fetch) {
   if (url.origin !== config.applicationOrigin || (!api && !media)) return json(404,'見つかりません。');
   if (request.headers.has('X-Tobiyori-Shared-Hop')) return json(508,'保存先の接続設定を確認してください。');
   const read = ['GET','HEAD'].includes(request.method);
+  const upgrade=request.headers.get('Upgrade')?.toLowerCase()==='websocket';
+  if(upgrade&&(url.pathname!=='/api/live/updates'||request.method!=='GET'))return json(404,'見つかりません。');
   if (media && !read || api && !['GET','POST','PUT','DELETE'].includes(request.method)) return json(405,'この操作には対応していません。');
-  if (!read && request.headers.get('Origin') !== config.applicationOrigin) return json(403,'アプリを開き直してから操作してください。');
+  if ((!read||upgrade) && request.headers.get('Origin') !== config.applicationOrigin) return json(403,'アプリを開き直してから操作してください。');
   const target = new URL(config.origin);
   target.pathname = url.pathname.split('/').map(part => config.aliases[part] || part).join('/');
   target.search = url.search;
@@ -31,7 +33,8 @@ export async function forwardSharedData(request, config, fetcher = fetch) {
   for (const name of ['Accept','Content-Type','X-Tobiyori-Account','If-None-Match','If-Modified-Since','Range','CF-Connecting-IP']) {
     if (request.headers.has(name)) headers.set(name,request.headers.get(name));
   }
-  if (!read) headers.set('Origin',config.origin);
+  if(upgrade)for(const name of ['Upgrade','Connection','Sec-WebSocket-Key','Sec-WebSocket-Version'])if(request.headers.has(name))headers.set(name,request.headers.get(name));
+  if (!read||upgrade) headers.set('Origin',config.origin);
   const cookieName = config.applicationOrigin.startsWith('https:') ? COOKIE : 'tobiyori_session';
   const cookie = (request.headers.get('Cookie') || '').split(';').map(v=>v.trim()).find(v=>new RegExp('^'+cookieName+'=[a-f0-9]{64}$').test(v));
   if (api && cookie) headers.set('Cookie',cookie);
@@ -50,7 +53,7 @@ export async function forwardSharedData(request, config, fetcher = fetch) {
   let response;
   try {
     // Never follow a redirect with account cookies or retry a potentially committed write.
-    response=await fetcher(new Request(target,{method:request.method,headers,body,redirect:'manual',signal:AbortSignal.timeout(20000)}));
+    response=await fetcher(new Request(target,{method:request.method,headers,body,redirect:'manual',...(!upgrade?{signal:AbortSignal.timeout(20000)}:{})}));
   } catch { return json(503,'現在、活動情報に接続できません。時間をおいてもう一度お試しください。'); }
   if(response.status>=300&&response.status<400&&response.status!==304)return json(502,'保存先の応答を確認できませんでした。');
   const output=new Headers(response.headers);
@@ -60,7 +63,7 @@ export async function forwardSharedData(request, config, fetcher = fetch) {
   for(const value of cookies)if(value.startsWith(cookieName+'=')&&!/;\s*Domain=/i.test(value)&&/;\s*HttpOnly(?:;|$)/i.test(value)&&/;\s*Path=\/(?:;|$)/i.test(value)&&/;\s*SameSite=Strict(?:;|$)/i.test(value)&&(!config.applicationOrigin.startsWith('https:')||/;\s*Secure(?:;|$)/i.test(value)))output.append('Set-Cookie',value);
   if(api)output.set('Cache-Control','no-store');
   output.set('X-Tobiyori-Data-Source',new URL(config.origin).host);
-  return new Response(response.body,{status:response.status,statusText:response.statusText,headers:output});
+  return new Response(response.body,{status:response.status,statusText:response.statusText,headers:output,...(upgrade&&response.webSocket?{webSocket:response.webSocket}:{})});
 }
 
 export function sharedEntryScript(config) {

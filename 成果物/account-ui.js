@@ -12,6 +12,7 @@ async function accountAPI(url, method='GET', data) {
   const response = await fetch('/api/'+url, {method, credentials:'same-origin',cache:'no-store',headers,body:data?JSON.stringify(data):undefined});
   const result = await response.json();
   if(!response.ok){if(response.status===429)accountRetryUntil=Date.now()+Math.max(1,Number(response.headers.get('Retry-After'))||60)*1000;throw Object.assign(new Error(result.error || '接続できませんでした。'),{status:response.status});}
+  if(method!=='GET')window.TobiyoriLiveSync?.changed(['login','logout','register'].includes(url));
   return result;
 }
 function accountNotice() {
