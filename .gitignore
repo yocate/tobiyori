@@ -25,6 +25,7 @@
 !/feedback.cjs
 !/activity-questions.cjs
 !/wrangler.jsonc
+!/wrangler.tobiyori-com.jsonc
 !/cloudflare/
 !/scripts/
 !/docs/

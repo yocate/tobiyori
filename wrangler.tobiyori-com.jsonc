@@ -1,0 +1,103 @@
+// tobiyori.com（氏家さんのCloudflareアカウント、自分たちのデータ）を公開する設定。手順は docs/publish.md。
+// アカウントIDは入れない。公開する人が $env:CLOUDFLARE_ACCOUNT_ID で指定する。
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tobiyori-ujiie",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "build": {
+    "command": "node scripts/build-assets.cjs"
+  },
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "tobiyori.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.tobiyori.com",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "dist/public",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "none",
+    "run_worker_first": [
+      "/",
+      "/index.html",
+      "/operator.html",
+      "/api/*",
+      "/media/*",
+      "/tobiyori-shared-entry.js"
+    ]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "TobiyoriDatabase"
+      ]
+    }
+  ],
+  "vars": {
+    "APP_ORIGIN": "https://tobiyori.com",
+    "REDIRECT_HOSTS": "www.tobiyori.com,tobiyori-ujiie.ks24701us.workers.dev",
+    "SHARED_DATA_ID_ALIASES": "{\"1990ee52-2465-4546-84fe-1323f82278d7\":\"eef37c5f-3ce7-4dc5-baf9-6d8d9a162cd6\",\"b5a82ebf-b8b3-425b-abe1-e9802dbb81fe\":\"3497a380-7a9e-4a94-ae4d-7e2a9898cb77\",\"05139331-5897-4df9-a2b3-59b942a02d8d\":\"810ea3ca-eabd-4ed8-957d-283aac563aa5\",\"7f62b882-dec0-4336-adb3-0221d4fbe7a7\":\"ab73aedb-9fee-45e4-a33d-c421abaf6ead\",\"b2b0f934-2229-4ed2-a2a4-f11db1207ce7\":\"6be4dcf6-2998-45bc-858d-b75641c17f84\",\"60fc9d08-e4bb-4297-985b-d722dd7d7d69\":\"c9cb318a-39d9-4653-a856-bbbc7b7a3235\",\"869d812d-8da4-407c-a786-1c6e33a69ecd\":\"dec3537c-d8e9-40ea-84a9-8dfee4ef8404\",\"4e41b61b-5e6c-4af6-92a4-89905cbf6663\":\"a1ca31a2-922d-4c10-a6dd-d4cb67015af6\"}"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "DB",
+        "class_name": "TobiyoriDatabase"
+      }
+    ]
+  },
+  "version_metadata": {
+    "binding": "CF_VERSION"
+  },
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "tobiyori-ujiie-media"
+    },
+    {
+      "binding": "BACKUPS",
+      "bucket_name": "tobiyori-ujiie-backups"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "AUTH_LIMITER",
+      "namespace_id": "61001",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    },
+    {
+      "name": "API_LIMITER",
+      "namespace_id": "61002",
+      "simple": {
+        "limit": 600,
+        "period": 60
+      }
+    },
+    {
+      "name": "NETWORK_LIMITER",
+      "namespace_id": "61003",
+      "simple": {
+        "limit": 6000,
+        "period": 60
+      }
+    }
+  ]
+}
