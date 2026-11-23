@@ -3,6 +3,8 @@
 !/.gitignore
 !/.gitattributes
 !/README.md
+!/AGENTS.md
+!/CLAUDE.md
 !/package.json
 !/package-lock.json
 !/tobiyori-server.cjs
