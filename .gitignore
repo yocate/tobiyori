@@ -21,6 +21,7 @@
 !/manage-tobiyori.cjs
 !/app.cjs
 !/tx.cjs
+!/restore-backup.cjs
 !/feedback.cjs
 !/activity-questions.cjs
 !/wrangler.jsonc
