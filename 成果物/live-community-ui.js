@@ -311,28 +311,35 @@ async function loadCommunityQuestions(box){
  try{
   const q=await accountAPI('live/community-questions/'+encodeURIComponent(cid));
   if(uid!==accountUser?.id||epoch!==accountEpoch||!box.isConnected)return;
-  box.innerHTML=communityQuestionsHTML(q);
+  TobiyoriAutoSync.renderPreservingInput(()=>{box.innerHTML=communityQuestionsHTML(q);},document,window);
   const form=box.querySelector('[data-community-question-form]');if(!form)return;
-  form.querySelectorAll('[data-community-question-template]').forEach(button=>button.onclick=()=>{form.elements.body.value=button.textContent;form.elements.body.focus();});
-  form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button.btn-primary');button.disabled=true;form.querySelector('[role="alert"]').textContent='';try{await accountAPI('live/community-questions/'+encodeURIComponent(cid),'POST',{body:form.elements.body.value});toast('匿名の質問を送りました。回答が届くとお知らせします。');await loadCommunityQuestions(box);}catch(error){form.querySelector('[role="alert"]').textContent=error.message;button.disabled=false;}};
- }catch(error){if(box.isConnected)box.innerHTML=`<h2>コミュニティへの匿名質問</h2><p role="alert">${escapeHtml(error.message)}</p>`;}
+  form.querySelectorAll('[data-community-question-template]').forEach(button=>button.onclick=()=>{form.elements.body.value=button.textContent;form.dataset.autoSyncDirty='true';form.elements.body.focus();});
+  form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button.btn-primary'),sent=form.elements.body.value;button.disabled=true;form.querySelector('[role="alert"]').textContent='';try{await accountAPI('live/community-questions/'+encodeURIComponent(cid),'POST',{body:sent});if(uid!==accountUser?.id||epoch!==accountEpoch||!box.isConnected)return;if(form.elements.body.value===sent){form.elements.body.value='';delete form.dataset.autoSyncDirty;}button.disabled=false;toast('匿名の質問を送りました。回答が届くとお知らせします。');await loadCommunityQuestions(box);}catch(error){form.querySelector('[role="alert"]').textContent=error.message;button.disabled=false;}};
+ }catch(error){if(uid===accountUser?.id&&epoch===accountEpoch&&box.isConnected)liveAsyncSectionError(box,error);}
+}
+function liveAsyncSectionError(box,error){
+ box.querySelectorAll('[role="status"]').forEach(node=>node.remove());
+ if([401,403,404].includes(error.status))box.replaceChildren();
+ let notice=box.querySelector('[data-question-load-error]');
+ if(!notice){notice=document.createElement('p');notice.dataset.questionLoadError='';notice.setAttribute('role','alert');box.prepend(notice);}
+ notice.textContent=error.message||'質問を読み込めませんでした。入力内容を保持しています。';
 }
 async function loadCommunityQuestionInbox(box){
  const uid=accountUser?.id,epoch=accountEpoch;
  try{
   const response=await accountAPI('live/community-questions');if(uid!==accountUser?.id||epoch!==accountEpoch||!box.isConnected)return;
-  box.innerHTML=response.questions.length?`<p class="hint">回答した質問だけがコミュニティのページに公開されます。質問者の名前は表示されません。</p>${response.questions.map(q=>`<form class="card live-card question-inbox-item" data-community-question-answer="${escapeHtml(q.id)}"><small>${escapeHtml(q.communityName)}・${escapeHtml(liveDate(q.createdAt))}</small><p class="question-q"><b aria-hidden="true">Q</b>${escapeHtml(q.body)}</p><label>回答<textarea name="answer" maxlength="1000" rows="3" required></textarea></label><p class="live-form-error" role="alert"></p><div class="live-navigation"><button class="btn btn-primary btn-sm">回答して公開する</button><button type="button" class="btn btn-ghost btn-sm" data-community-question-hide>非表示にする</button></div></form>`).join('')}`:'<p>回答待ちの質問はありません。</p>';
+  TobiyoriAutoSync.renderPreservingInput(()=>{box.innerHTML=response.questions.length?`<p class="hint">回答した質問だけがコミュニティのページに公開されます。質問者の名前は表示されません。</p>${response.questions.map(q=>`<form class="card live-card question-inbox-item" data-community-question-answer="${escapeHtml(q.id)}"><small>${escapeHtml(q.communityName)}・${escapeHtml(liveDate(q.createdAt))}</small><p class="question-q"><b aria-hidden="true">Q</b>${escapeHtml(q.body)}</p><label>回答<textarea name="answer" maxlength="1000" rows="3" required></textarea></label><p class="live-form-error" role="alert"></p><div class="live-navigation"><button class="btn btn-primary btn-sm">回答して公開する</button><button type="button" class="btn btn-ghost btn-sm" data-community-question-hide>非表示にする</button></div></form>`).join('')}`:'<p>回答待ちの質問はありません。</p>';},document,window);
   box.querySelectorAll('[data-community-question-answer]').forEach(form=>{
    const qid=form.dataset.communityQuestionAnswer;
    form.onsubmit=async event=>{event.preventDefault();try{await accountAPI('live/community-questions/'+encodeURIComponent(qid)+'/answer','POST',{answer:form.elements.answer.value});toast('回答を公開しました。');await loadCommunityQuestionInbox(box);}catch(error){form.querySelector('[role="alert"]').textContent=error.message;}};
    form.querySelector('[data-community-question-hide]').onclick=async()=>{if(!confirm('この質問を非表示にしますか？'))return;try{await accountAPI('live/community-questions/'+encodeURIComponent(qid)+'/hide','POST',{});await loadCommunityQuestionInbox(box);}catch(error){toast(error.message);}};
   });
- }catch(error){if(box.isConnected)box.innerHTML=`<p role="alert">${escapeHtml(error.message)}</p>`;}
+ }catch(error){if(uid===accountUser?.id&&epoch===accountEpoch&&box.isConnected)liveAsyncSectionError(box,error);}
 }
 function bindLiveUI(scope){
  bindApprovalSearchUI(scope);
- scope.querySelectorAll('[data-community-questions]').forEach(box=>void loadCommunityQuestions(box));
- const communityInbox=scope.querySelector('[data-community-question-inbox]');if(communityInbox&&accountUser)void loadCommunityQuestionInbox(communityInbox);
+ scope.querySelectorAll('[data-community-questions]').forEach(box=>{box.addEventListener('tobiyori:auto-sync',()=>void loadCommunityQuestions(box));void loadCommunityQuestions(box);});
+ const communityInbox=scope.querySelector('[data-community-question-inbox]');if(communityInbox&&accountUser){communityInbox.addEventListener('tobiyori:auto-sync',()=>void loadCommunityQuestionInbox(communityInbox));void loadCommunityQuestionInbox(communityInbox);}
  bindRegistrationShortcuts(scope);
  bindSerendipityUI(scope);
  bindNearbyUI(scope);

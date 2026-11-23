@@ -69,7 +69,14 @@ async function openLiveRoom(aid,draft=''){
 function liveSyncIdentity(){return {account:String(accountEpoch)+':'+(accountUser?.id||''),route:current.view+'/'+(current.param||'')};}
 function liveSyncSignature(){return JSON.stringify([LIVE.catalog,LIVE.dashboard,LIVE.review,LIVE.feedbackNew,LIVE.error]);}
 function liveHandleAuthChange(){
+ preserveAccountRecovery();
  accountEpoch++;accountUser=null;clearLivePrivate();DB=defaultStore();pendingAccountState=null;accountRevision=0;accountError='';accountReady=false;closeModal();void startAccount();
+}
+function liveSyncNotice(message=''){
+ let notice=document.getElementById('liveSyncNotice');
+ if(!message){notice?.remove();return;}
+ if(!notice){notice=document.createElement('p');notice.id='liveSyncNotice';notice.className='container live-form-error';notice.setAttribute('role','status');document.getElementById('app')?.before(notice);}
+ notice.textContent=message;
 }
 function liveSafeRender(){
  const mapView=activeCircleMap?{center:activeCircleMap.getCenter(),zoom:activeCircleMap.getZoom()}:null;
@@ -85,7 +92,7 @@ function startLiveAutoSync(){
   context:liveSyncIdentity,signature:liveSyncSignature,
   retryUntil:()=>accountRetryUntil,
   capabilities:()=>accountAPI('health'),
-  refresh:async()=>{await refreshLive(false,{background:true,fresh:true,quiet:true});if(LIVE.errorStatus===401||LIVE.errorStatus===409&&/ログイン状態/.test(LIVE.error)){liveHandleAuthChange();return;}if(LIVE.error){if(LIVE.errorStatus===403)closeModal();liveSafeRender();throw new Error('retry later');}},
+  refresh:async()=>{await refreshLive(false,{background:true,fresh:true,quiet:true});if(LIVE.errorStatus===401||LIVE.errorStatus===409&&/ログイン状態/.test(LIVE.error)){liveSyncNotice();liveHandleAuthChange();return;}if(LIVE.error){if(LIVE.errorStatus===403){liveSyncNotice();closeModal();liveSafeRender();}else liveSyncNotice('最新の情報を取得できません。入力中の内容を保持しています。通信が戻ると自動で再確認します。');throw new Error('retry later');}liveSyncNotice();},
   render:liveSafeRender,room:refreshOpenLiveRoom,authChanged:liveHandleAuthChange
  });
 }

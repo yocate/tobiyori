@@ -1,7 +1,7 @@
 /* Live updates carry no message bodies or account IDs. Normal authenticated APIs supply the data. */
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.TobiyoriAutoSync=factory();})(typeof globalThis!=='undefined'?globalThis:this,function(){
  function create(adapter,env){
-  env=env||window;let timer,reconnect,heartbeat,socket,stopped=false,busy=false,again=false,connected=false,account='',failures=0,lastCapabilities=0,capable=false;
+  env=env||window;let timer,reconnect,heartbeat,socket,stopped=false,busy=false,again=false,pendingRender=false,connected=false,account='',failures=0,lastCapabilities=0,capable=false;
   const now=()=>env.Date?env.Date.now():Date.now(),visible=()=>env.document.visibilityState!=='hidden';
   const channel=typeof env.BroadcastChannel==='function'?new env.BroadcastChannel('tobiyori-live-updates'):null;
   const context=()=>JSON.stringify(adapter.context());
@@ -10,7 +10,9 @@
   function closeSocket(){connected=false;env.clearTimeout(reconnect);env.clearInterval(heartbeat);const old=socket;socket=null;if(old){old.onclose=null;old.onerror=null;try{old.close();}catch{}}}
   async function connect(){
    if(stopped||!adapter.ready()||!visible())return;
-   if(now()-lastCapabilities>60000||!lastCapabilities){lastCapabilities=now();try{capable=!!(await adapter.capabilities()).liveUpdates;}catch{capable=false;}}
+   const before=context();
+   if(now()-lastCapabilities>60000||!lastCapabilities){lastCapabilities=now();try{capable=!!(await adapter.capabilities()).liveUpdates;}catch{capable=false;lastCapabilities=0;}}
+   if(stopped||!adapter.ready()||!visible()||before!==context())return;
    if(!capable||socket||typeof env.WebSocket!=='function')return;
    const url=new URL('/api/live/updates',env.location.href);url.protocol=url.protocol==='https:'?'wss:':'ws:';
    const ws=new env.WebSocket(url.href);socket=ws;
@@ -26,9 +28,10 @@
    busy=true;const before=context(),signature=adapter.signature();again=false;
    try{
     const currentAccount=adapter.context().account;if(account!==currentAccount){account=currentAccount;closeSocket();lastCapabilities=0;}
-    await connect();await adapter.refresh();
-    if(before!==context())return;
-    if(signature!==adapter.signature())adapter.render();
+    await connect();if(stopped)return;await adapter.refresh();if(stopped)return;
+    if(signature!==adapter.signature())pendingRender=true;
+    if(before!==context()){again=true;return;}
+    if(pendingRender){adapter.render();pendingRender=false;}
     await adapter.room();failures=0;
    }catch{failures++;}
    finally{busy=false;later(again?0:failures?Math.min(30000,2000*2**Math.min(failures,4)):connected?30000:2000);}
@@ -47,15 +50,22 @@
   const active=doc.activeElement,selection=active&&'selectionStart'in active?{start:active.selectionStart,end:active.selectionEnd,direction:active.selectionDirection}:null;
   const key=form=>form.id||Array.from(form.attributes).filter(a=>a.name.startsWith('data-')&&a.name!=='data-auto-sync-dirty').map(a=>a.name+'='+a.value).sort().join('|');
   const forms=Array.from(app.querySelectorAll('form')).map(form=>({form,key:key(form)})).filter(v=>v.key&&(v.form.dataset.autoSyncDirty==='true'||v.form.contains(active)||Array.from(v.form.querySelectorAll('input[type=file]')).some(f=>f.files?.length)));
+  // Async sections first render a loading placeholder. Keep their live nodes until
+  // their own refresh can reconcile the forms against the authenticated response.
+  const sectionKey=node=>node.hasAttribute('data-community-questions')?'questions:'+node.dataset.communityQuestions:'inbox';
+  const sections=Array.from(app.querySelectorAll('[data-community-questions],[data-community-question-inbox]')).filter(node=>forms.some(v=>node.contains(v.form))).map(node=>({node,key:sectionKey(node)}));
   const loose=active&&app.contains(active)&&!active.closest('form')&&active.id?active:null;
   const details=Array.from(app.querySelectorAll('details')).map((node,index)=>({index,label:node.querySelector('summary')?.textContent,open:node.open}));
   const sx=win.scrollX,sy=win.scrollY;render();
+  const refresh=[];
+  for(const old of sections){const target=Array.from(app.querySelectorAll('[data-community-questions],[data-community-question-inbox]')).find(node=>sectionKey(node)===old.key);if(target&&target!==old.node){target.replaceWith(old.node);refresh.push(old.node);}}
   const targets=Array.from(app.querySelectorAll('form')).map(form=>({form,key:key(form)}));
   for(const old of forms){const target=targets.find(v=>v.key===old.key);if(target)target.form.replaceWith(old.form);}
   if(loose){const replacement=doc.getElementById(loose.id);if(replacement&&app.contains(replacement))replacement.replaceWith(loose);}
   if(active&&app.contains(active)&&active.isConnected){try{active.focus({preventScroll:true});if(selection&&typeof active.setSelectionRange==='function')active.setSelectionRange(selection.start,selection.end,selection.direction);}catch{}}
   const current=Array.from(app.querySelectorAll('details'));for(const old of details)if(current[old.index]?.querySelector('summary')?.textContent===old.label)current[old.index].open=old.open;
   win.scrollTo(sx,sy);
+  for(const node of refresh)node.dispatchEvent(new win.Event('tobiyori:auto-sync'));
  }
  return {create,renderPreservingInput};
 });

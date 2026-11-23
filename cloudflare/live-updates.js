@@ -20,12 +20,26 @@ export function broadcastLiveUpdates(ctx,db,{actorId,cursor,publicChanged=false}
   }catch{try{socket.close(1011,'接続を確認してください');}catch{}}
  }
 }
-export function openLiveSocket(request,env,ctx,db,app){
+export function liveSocketAtCapacity(ctx,userId,ipTag){
+ return ctx.getWebSockets().length>=1024||(!userId&&ipTag&&ctx.getWebSockets(ipTag).length>=32)||
+  (userId?ctx.getWebSockets('account:'+userId).length>=16:ctx.getWebSockets('public').length>=256);
+}
+export async function liveSocketIpTag(request){
+ let address=request.headers.get('CF-Connecting-IP');if(!address)return null;
+ if(address.includes(':'))try{address=new URL('http://['+address+']/').hostname.slice(1,-1);}catch{return null;}
+ // Cross-zone Worker requests share this Cloudflare address, not a visitor IP.
+ if(address==='2a06:98c0:3600::103')return null;
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(address));
+ return 'ip:'+Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+export async function openLiveSocket(request,env,ctx,db,app){
  if(request.method!=='GET'||request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return json(426,'WebSocket接続が必要です。');
  if(request.headers.get('Origin')!==new URL(env.APP_ORIGIN).origin)return json(403,'アプリを開き直してください。');
- if(ctx.getWebSockets().length>=1024)return json(503,'接続が混み合っています。');
- const user=app.userFor({headers:{cookie:request.headers.get('Cookie')||''}}),pair=new WebSocketPair(),client=pair[0],server=pair[1];
- ctx.acceptWebSocket(server,[user?'account:'+user.id:'public']);
+ const ipTag=await liveSocketIpTag(request);
+ const user=app.userFor({headers:{cookie:request.headers.get('Cookie')||''}});
+ if(liveSocketAtCapacity(ctx,user?.id,ipTag))return json(503,'接続が混み合っています。');
+ const pair=new WebSocketPair(),client=pair[0],server=pair[1];
+ ctx.acceptWebSocket(server,[user?'account:'+user.id:'public',...(!user&&ipTag?[ipTag]:[])]);
  server.serializeAttachment({userId:user?.id||null,tokenHash:user?.token_hash||null,lastPing:0});
  server.send('{"type":"connected"}');
  return new Response(null,{status:101,webSocket:client});

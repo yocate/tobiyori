@@ -6,6 +6,27 @@ const OPERATOR_APP = location.pathname === '/operator.html';
 function escapeHtml(value){return campusEscape(value);}
 let accountUser = null, accountReady = false, accountRevision = 0;
 let pendingAccountState = null, accountSaving = null, accountError = '', accountEpoch = 0, accountConflict = false, accountRetryUntil = 0;
+// Keep unsaved changes in this page's memory, scoped to their original account.
+// They are never shown to another account or written back without confirmation.
+const accountRecoveries=new Map();
+function preserveAccountRecovery(){
+ if(accountUser&&(pendingAccountState||accountSaving))accountRecoveries.set(accountUser.id,JSON.parse(JSON.stringify(pendingAccountState||DB)));
+}
+function renderAccountRecovery(el){
+ if(!accountRecoveries.size)return;
+ const same=accountRecoveries.has(accountUser?.id),p=document.createElement('p');p.className='hint';
+ p.textContent=same?'ログイン前の未保存の変更を、この画面に保持しています。内容を復元して保存できます。':'未保存の変更を、この画面に保持しています。同じアカウントでログインすると復元できます。';el.append(p);
+ const discard=document.createElement('button');discard.className='btn btn-ghost btn-sm';discard.textContent='保持した変更をすべて破棄';discard.onclick=()=>{if(confirm('この画面に保持している未保存の変更をすべて破棄します。よろしいですか？')){accountRecoveries.clear();accountNotice();}};
+ if(!same){el.append(discard);return;}
+ const restore=document.createElement('button');restore.className='btn btn-secondary btn-sm';restore.textContent='未保存の変更を復元して保存';
+ restore.onclick=async()=>{
+  if(!confirm('ログイン前の未保存の変更で、マイページを上書き保存します。よろしいですか？'))return;
+  const uid=accountUser?.id,draft=accountRecoveries.get(uid);if(!draft)return;
+  DB=JSON.parse(JSON.stringify(draft));pendingAccountState=JSON.parse(JSON.stringify(draft));accountRecoveries.delete(uid);accountError='';accountConflict=false;render();
+  try{await flushAccount();toast('未保存の変更を復元して保存しました');}catch{accountNotice();}
+ };
+ el.append(restore,discard);
+}
 async function accountAPI(url, method='GET', data) {
   const headers=data?{'Content-Type':'application/json'}:{};
   if(accountUser && (['state','logout'].includes(url)||url.startsWith('live/')||url.startsWith('feedback/')))headers['X-Tobiyori-Account']=accountUser.id;
@@ -17,10 +38,11 @@ async function accountAPI(url, method='GET', data) {
 }
 function accountNotice() {
   const el=document.getElementById('accountBar'); if(!el)return;
-  el.hidden=!OPERATOR_APP&&ACCOUNT_SERVER&&accountReady&&!accountError&&!pendingAccountState&&!accountSaving;
+  el.hidden=!OPERATOR_APP&&ACCOUNT_SERVER&&accountReady&&!accountError&&!pendingAccountState&&!accountSaving&&!accountRecoveries.size;
   if(el.hidden)return;
   const text = !ACCOUNT_SERVER ? 'アカウント機能を使うには、起動したアプリを開いてください。' : !accountReady ? 'アカウントを確認しています…' : accountUser ? `${accountUser.nickname} さん` : OPERATOR_APP?'運営者用アカウントでログインしてください。':'ログインすると、自分のマイページを保存できます。';
   el.innerHTML=`<div>${escapeHtml(text)}${accountUser&&!OPERATOR_APP?`<span class="account-save-status" role="status">${accountError?escapeHtml(accountError):(pendingAccountState||accountSaving)?'変更を保存中…':'保存済み'}</span>`:''}</div><div class="account-bar-actions">${!ACCOUNT_SERVER?'<a class="btn btn-primary btn-sm" href="http://localhost:4177/">ログインできるアプリを開く</a>':!accountReady?'':accountUser?`${OPERATOR_APP?'<button class="btn btn-ghost btn-sm" id="accountLogout">ログアウト</button>':''}${accountError?(accountConflict?'<button class="btn btn-secondary btn-sm" id="accountReload">最新の内容を読み込む</button><button class="btn btn-ghost btn-sm" id="accountOverwrite">この画面の内容で上書き保存</button>':'<button class="btn btn-ghost btn-sm" id="accountRetry">保存を再試行</button>'):''}`:OPERATOR_APP?'<button class="btn btn-ghost btn-sm" data-account-nav="login">運営者ログイン</button>':'<button class="btn btn-ghost btn-sm" data-account-nav="login">ログイン</button><button class="btn btn-primary btn-sm" data-account-nav="register">新規登録</button>'}</div>`;
+  renderAccountRecovery(el);
   el.querySelectorAll('[data-account-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.accountNav));
   el.querySelector('#accountLogout')?.addEventListener('click',logoutAccount);
   el.querySelector('#accountRetry')?.addEventListener('click',()=>flushAccount().catch(()=>{}));
@@ -56,7 +78,9 @@ async function flushAccount() {
   try {await accountSaving;} finally {accountSaving=null;accountNotice();}
 }
 async function loadAccountState() {
+  const epoch=accountEpoch,uid=accountUser?.id;
   const result=await accountAPI('state');
+  if(epoch!==accountEpoch||uid!==accountUser?.id)return;
   const base=defaultStore();
   DB=Object.assign(base,result.state||{});
   DB.profile=Object.assign(defaultStore().profile,result.state?.profile||{nickname:accountUser.nickname});
@@ -65,8 +89,10 @@ async function loadAccountState() {
 }
 async function startAccount() {
   if(!ACCOUNT_SERVER){accountReady=true;render();return;}
-  try { const result=await accountAPI('me');accountUser=result.user;await loadAccountState(); }
-  catch(e){accountUser=null;DB=defaultStore();if(e.status!==401)accountError='アカウントに接続できませんでした。ページを再読み込みしてください。';}
+  const epoch=accountEpoch;
+  try { const result=await accountAPI('me');if(epoch!==accountEpoch)return;accountUser=result.user;await loadAccountState(); }
+  catch(e){if(epoch!==accountEpoch)return;accountUser=null;DB=defaultStore();if(e.status!==401)accountError='アカウントに接続できませんでした。ページを再読み込みしてください。';}
+  if(epoch!==accountEpoch)return;
   accountReady=true;await refreshLive(false);render();
 }
 async function logoutAccount() {
@@ -127,5 +153,5 @@ function accountGate() {
   if(['mypage','orgSignup','org','admin','myactivity','notifications','following','offers','support','reports','serendipity'].includes(current.view) && (!ACCOUNT_SERVER||!accountUser||!accountReady))return viewAccount('login');
   return null;
 }
-window.addEventListener('beforeunload',e=>{if(pendingAccountState||accountSaving){e.preventDefault();e.returnValue='';}});
+window.addEventListener('beforeunload',e=>{if(pendingAccountState||accountSaving||accountRecoveries.size){e.preventDefault();e.returnValue='';}});
 

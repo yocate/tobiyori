@@ -1081,6 +1081,27 @@ const OPERATOR_APP = location.pathname === '/operator.html';
 function escapeHtml(value){return campusEscape(value);}
 let accountUser = null, accountReady = false, accountRevision = 0;
 let pendingAccountState = null, accountSaving = null, accountError = '', accountEpoch = 0, accountConflict = false, accountRetryUntil = 0;
+// Keep unsaved changes in this page's memory, scoped to their original account.
+// They are never shown to another account or written back without confirmation.
+const accountRecoveries=new Map();
+function preserveAccountRecovery(){
+ if(accountUser&&(pendingAccountState||accountSaving))accountRecoveries.set(accountUser.id,JSON.parse(JSON.stringify(pendingAccountState||DB)));
+}
+function renderAccountRecovery(el){
+ if(!accountRecoveries.size)return;
+ const same=accountRecoveries.has(accountUser?.id),p=document.createElement('p');p.className='hint';
+ p.textContent=same?'ログイン前の未保存の変更を、この画面に保持しています。内容を復元して保存できます。':'未保存の変更を、この画面に保持しています。同じアカウントでログインすると復元できます。';el.append(p);
+ const discard=document.createElement('button');discard.className='btn btn-ghost btn-sm';discard.textContent='保持した変更をすべて破棄';discard.onclick=()=>{if(confirm('この画面に保持している未保存の変更をすべて破棄します。よろしいですか？')){accountRecoveries.clear();accountNotice();}};
+ if(!same){el.append(discard);return;}
+ const restore=document.createElement('button');restore.className='btn btn-secondary btn-sm';restore.textContent='未保存の変更を復元して保存';
+ restore.onclick=async()=>{
+  if(!confirm('ログイン前の未保存の変更で、マイページを上書き保存します。よろしいですか？'))return;
+  const uid=accountUser?.id,draft=accountRecoveries.get(uid);if(!draft)return;
+  DB=JSON.parse(JSON.stringify(draft));pendingAccountState=JSON.parse(JSON.stringify(draft));accountRecoveries.delete(uid);accountError='';accountConflict=false;render();
+  try{await flushAccount();toast('未保存の変更を復元して保存しました');}catch{accountNotice();}
+ };
+ el.append(restore,discard);
+}
 async function accountAPI(url, method='GET', data) {
   const headers=data?{'Content-Type':'application/json'}:{};
   if(accountUser && (['state','logout'].includes(url)||url.startsWith('live/')||url.startsWith('feedback/')))headers['X-Tobiyori-Account']=accountUser.id;
@@ -1092,10 +1113,11 @@ async function accountAPI(url, method='GET', data) {
 }
 function accountNotice() {
   const el=document.getElementById('accountBar'); if(!el)return;
-  el.hidden=!OPERATOR_APP&&ACCOUNT_SERVER&&accountReady&&!accountError&&!pendingAccountState&&!accountSaving;
+  el.hidden=!OPERATOR_APP&&ACCOUNT_SERVER&&accountReady&&!accountError&&!pendingAccountState&&!accountSaving&&!accountRecoveries.size;
   if(el.hidden)return;
   const text = !ACCOUNT_SERVER ? 'アカウント機能を使うには、起動したアプリを開いてください。' : !accountReady ? 'アカウントを確認しています…' : accountUser ? `${accountUser.nickname} さん` : OPERATOR_APP?'運営者用アカウントでログインしてください。':'ログインすると、自分のマイページを保存できます。';
   el.innerHTML=`<div>${escapeHtml(text)}${accountUser&&!OPERATOR_APP?`<span class="account-save-status" role="status">${accountError?escapeHtml(accountError):(pendingAccountState||accountSaving)?'変更を保存中…':'保存済み'}</span>`:''}</div><div class="account-bar-actions">${!ACCOUNT_SERVER?'<a class="btn btn-primary btn-sm" href="http://localhost:4177/">ログインできるアプリを開く</a>':!accountReady?'':accountUser?`${OPERATOR_APP?'<button class="btn btn-ghost btn-sm" id="accountLogout">ログアウト</button>':''}${accountError?(accountConflict?'<button class="btn btn-secondary btn-sm" id="accountReload">最新の内容を読み込む</button><button class="btn btn-ghost btn-sm" id="accountOverwrite">この画面の内容で上書き保存</button>':'<button class="btn btn-ghost btn-sm" id="accountRetry">保存を再試行</button>'):''}`:OPERATOR_APP?'<button class="btn btn-ghost btn-sm" data-account-nav="login">運営者ログイン</button>':'<button class="btn btn-ghost btn-sm" data-account-nav="login">ログイン</button><button class="btn btn-primary btn-sm" data-account-nav="register">新規登録</button>'}</div>`;
+  renderAccountRecovery(el);
   el.querySelectorAll('[data-account-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.accountNav));
   el.querySelector('#accountLogout')?.addEventListener('click',logoutAccount);
   el.querySelector('#accountRetry')?.addEventListener('click',()=>flushAccount().catch(()=>{}));
@@ -1131,7 +1153,9 @@ async function flushAccount() {
   try {await accountSaving;} finally {accountSaving=null;accountNotice();}
 }
 async function loadAccountState() {
+  const epoch=accountEpoch,uid=accountUser?.id;
   const result=await accountAPI('state');
+  if(epoch!==accountEpoch||uid!==accountUser?.id)return;
   const base=defaultStore();
   DB=Object.assign(base,result.state||{});
   DB.profile=Object.assign(defaultStore().profile,result.state?.profile||{nickname:accountUser.nickname});
@@ -1140,8 +1164,10 @@ async function loadAccountState() {
 }
 async function startAccount() {
   if(!ACCOUNT_SERVER){accountReady=true;render();return;}
-  try { const result=await accountAPI('me');accountUser=result.user;await loadAccountState(); }
-  catch(e){accountUser=null;DB=defaultStore();if(e.status!==401)accountError='アカウントに接続できませんでした。ページを再読み込みしてください。';}
+  const epoch=accountEpoch;
+  try { const result=await accountAPI('me');if(epoch!==accountEpoch)return;accountUser=result.user;await loadAccountState(); }
+  catch(e){if(epoch!==accountEpoch)return;accountUser=null;DB=defaultStore();if(e.status!==401)accountError='アカウントに接続できませんでした。ページを再読み込みしてください。';}
+  if(epoch!==accountEpoch)return;
   accountReady=true;await refreshLive(false);render();
 }
 async function logoutAccount() {
@@ -1202,14 +1228,14 @@ function accountGate() {
   if(['mypage','orgSignup','org','admin','myactivity','notifications','following','saved','offers','support','reports'].includes(current.view) && (!ACCOUNT_SERVER||!accountUser||!accountReady))return viewAccount('login');
   return null;
 }
-window.addEventListener('beforeunload',e=>{if(pendingAccountState||accountSaving){e.preventDefault();e.returnValue='';}});
+window.addEventListener('beforeunload',e=>{if(pendingAccountState||accountSaving||accountRecoveries.size){e.preventDefault();e.returnValue='';}});
 
 
 
 /* Live updates carry no message bodies or account IDs. Normal authenticated APIs supply the data. */
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory();else root.TobiyoriAutoSync=factory();})(typeof globalThis!=='undefined'?globalThis:this,function(){
  function create(adapter,env){
-  env=env||window;let timer,reconnect,heartbeat,socket,stopped=false,busy=false,again=false,connected=false,account='',failures=0,lastCapabilities=0,capable=false;
+  env=env||window;let timer,reconnect,heartbeat,socket,stopped=false,busy=false,again=false,pendingRender=false,connected=false,account='',failures=0,lastCapabilities=0,capable=false;
   const now=()=>env.Date?env.Date.now():Date.now(),visible=()=>env.document.visibilityState!=='hidden';
   const channel=typeof env.BroadcastChannel==='function'?new env.BroadcastChannel('tobiyori-live-updates'):null;
   const context=()=>JSON.stringify(adapter.context());
@@ -1218,7 +1244,9 @@ window.addEventListener('beforeunload',e=>{if(pendingAccountState||accountSaving
   function closeSocket(){connected=false;env.clearTimeout(reconnect);env.clearInterval(heartbeat);const old=socket;socket=null;if(old){old.onclose=null;old.onerror=null;try{old.close();}catch{}}}
   async function connect(){
    if(stopped||!adapter.ready()||!visible())return;
-   if(now()-lastCapabilities>60000||!lastCapabilities){lastCapabilities=now();try{capable=!!(await adapter.capabilities()).liveUpdates;}catch{capable=false;}}
+   const before=context();
+   if(now()-lastCapabilities>60000||!lastCapabilities){lastCapabilities=now();try{capable=!!(await adapter.capabilities()).liveUpdates;}catch{capable=false;lastCapabilities=0;}}
+   if(stopped||!adapter.ready()||!visible()||before!==context())return;
    if(!capable||socket||typeof env.WebSocket!=='function')return;
    const url=new URL('/api/live/updates',env.location.href);url.protocol=url.protocol==='https:'?'wss:':'ws:';
    const ws=new env.WebSocket(url.href);socket=ws;
@@ -1234,9 +1262,10 @@ window.addEventListener('beforeunload',e=>{if(pendingAccountState||accountSaving
    busy=true;const before=context(),signature=adapter.signature();again=false;
    try{
     const currentAccount=adapter.context().account;if(account!==currentAccount){account=currentAccount;closeSocket();lastCapabilities=0;}
-    await connect();await adapter.refresh();
-    if(before!==context())return;
-    if(signature!==adapter.signature())adapter.render();
+    await connect();if(stopped)return;await adapter.refresh();if(stopped)return;
+    if(signature!==adapter.signature())pendingRender=true;
+    if(before!==context()){again=true;return;}
+    if(pendingRender){adapter.render();pendingRender=false;}
     await adapter.room();failures=0;
    }catch{failures++;}
    finally{busy=false;later(again?0:failures?Math.min(30000,2000*2**Math.min(failures,4)):connected?30000:2000);}
@@ -1255,15 +1284,22 @@ window.addEventListener('beforeunload',e=>{if(pendingAccountState||accountSaving
   const active=doc.activeElement,selection=active&&'selectionStart'in active?{start:active.selectionStart,end:active.selectionEnd,direction:active.selectionDirection}:null;
   const key=form=>form.id||Array.from(form.attributes).filter(a=>a.name.startsWith('data-')&&a.name!=='data-auto-sync-dirty').map(a=>a.name+'='+a.value).sort().join('|');
   const forms=Array.from(app.querySelectorAll('form')).map(form=>({form,key:key(form)})).filter(v=>v.key&&(v.form.dataset.autoSyncDirty==='true'||v.form.contains(active)||Array.from(v.form.querySelectorAll('input[type=file]')).some(f=>f.files?.length)));
+  // Async sections first render a loading placeholder. Keep their live nodes until
+  // their own refresh can reconcile the forms against the authenticated response.
+  const sectionKey=node=>node.hasAttribute('data-community-questions')?'questions:'+node.dataset.communityQuestions:'inbox';
+  const sections=Array.from(app.querySelectorAll('[data-community-questions],[data-community-question-inbox]')).filter(node=>forms.some(v=>node.contains(v.form))).map(node=>({node,key:sectionKey(node)}));
   const loose=active&&app.contains(active)&&!active.closest('form')&&active.id?active:null;
   const details=Array.from(app.querySelectorAll('details')).map((node,index)=>({index,label:node.querySelector('summary')?.textContent,open:node.open}));
   const sx=win.scrollX,sy=win.scrollY;render();
+  const refresh=[];
+  for(const old of sections){const target=Array.from(app.querySelectorAll('[data-community-questions],[data-community-question-inbox]')).find(node=>sectionKey(node)===old.key);if(target&&target!==old.node){target.replaceWith(old.node);refresh.push(old.node);}}
   const targets=Array.from(app.querySelectorAll('form')).map(form=>({form,key:key(form)}));
   for(const old of forms){const target=targets.find(v=>v.key===old.key);if(target)target.form.replaceWith(old.form);}
   if(loose){const replacement=doc.getElementById(loose.id);if(replacement&&app.contains(replacement))replacement.replaceWith(loose);}
   if(active&&app.contains(active)&&active.isConnected){try{active.focus({preventScroll:true});if(selection&&typeof active.setSelectionRange==='function')active.setSelectionRange(selection.start,selection.end,selection.direction);}catch{}}
   const current=Array.from(app.querySelectorAll('details'));for(const old of details)if(current[old.index]?.querySelector('summary')?.textContent===old.label)current[old.index].open=old.open;
   win.scrollTo(sx,sy);
+  for(const node of refresh)node.dispatchEvent(new win.Event('tobiyori:auto-sync'));
  }
  return {create,renderPreservingInput};
 });
@@ -1781,23 +1817,30 @@ async function loadCommunityQuestions(box){
  try{
   const q=await accountAPI('live/community-questions/'+encodeURIComponent(cid));
   if(uid!==accountUser?.id||epoch!==accountEpoch||!box.isConnected)return;
-  box.innerHTML=communityQuestionsHTML(q);
+  TobiyoriAutoSync.renderPreservingInput(()=>{box.innerHTML=communityQuestionsHTML(q);},document,window);
   const form=box.querySelector('[data-community-question-form]');if(!form)return;
-  form.querySelectorAll('[data-community-question-template]').forEach(button=>button.onclick=()=>{form.elements.body.value=button.textContent;form.elements.body.focus();});
-  form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button.btn-primary');button.disabled=true;form.querySelector('[role="alert"]').textContent='';try{await accountAPI('live/community-questions/'+encodeURIComponent(cid),'POST',{body:form.elements.body.value});toast('匿名の質問を送りました。回答が届くとお知らせします。');await loadCommunityQuestions(box);}catch(error){form.querySelector('[role="alert"]').textContent=error.message;button.disabled=false;}};
- }catch(error){if(box.isConnected)box.innerHTML=`<h2>コミュニティへの匿名質問</h2><p role="alert">${escapeHtml(error.message)}</p>`;}
+  form.querySelectorAll('[data-community-question-template]').forEach(button=>button.onclick=()=>{form.elements.body.value=button.textContent;form.dataset.autoSyncDirty='true';form.elements.body.focus();});
+  form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button.btn-primary'),sent=form.elements.body.value;button.disabled=true;form.querySelector('[role="alert"]').textContent='';try{await accountAPI('live/community-questions/'+encodeURIComponent(cid),'POST',{body:sent});if(uid!==accountUser?.id||epoch!==accountEpoch||!box.isConnected)return;if(form.elements.body.value===sent){form.elements.body.value='';delete form.dataset.autoSyncDirty;}button.disabled=false;toast('匿名の質問を送りました。回答が届くとお知らせします。');await loadCommunityQuestions(box);}catch(error){form.querySelector('[role="alert"]').textContent=error.message;button.disabled=false;}};
+ }catch(error){if(uid===accountUser?.id&&epoch===accountEpoch&&box.isConnected)liveAsyncSectionError(box,error);}
+}
+function liveAsyncSectionError(box,error){
+ box.querySelectorAll('[role="status"]').forEach(node=>node.remove());
+ if([401,403,404].includes(error.status))box.replaceChildren();
+ let notice=box.querySelector('[data-question-load-error]');
+ if(!notice){notice=document.createElement('p');notice.dataset.questionLoadError='';notice.setAttribute('role','alert');box.prepend(notice);}
+ notice.textContent=error.message||'質問を読み込めませんでした。入力内容を保持しています。';
 }
 async function loadCommunityQuestionInbox(box){
  const uid=accountUser?.id,epoch=accountEpoch;
  try{
   const response=await accountAPI('live/community-questions');if(uid!==accountUser?.id||epoch!==accountEpoch||!box.isConnected)return;
-  box.innerHTML=response.questions.length?`<p class="hint">回答した質問だけがコミュニティのページに公開されます。質問者の名前は表示されません。</p>${response.questions.map(q=>`<form class="card live-card question-inbox-item" data-community-question-answer="${escapeHtml(q.id)}"><small>${escapeHtml(q.communityName)}・${escapeHtml(liveDate(q.createdAt))}</small><p class="question-q"><b aria-hidden="true">Q</b>${escapeHtml(q.body)}</p><label>回答<textarea name="answer" maxlength="1000" rows="3" required></textarea></label><p class="live-form-error" role="alert"></p><div class="live-navigation"><button class="btn btn-primary btn-sm">回答して公開する</button><button type="button" class="btn btn-ghost btn-sm" data-community-question-hide>非表示にする</button></div></form>`).join('')}`:'<p>回答待ちの質問はありません。</p>';
+  TobiyoriAutoSync.renderPreservingInput(()=>{box.innerHTML=response.questions.length?`<p class="hint">回答した質問だけがコミュニティのページに公開されます。質問者の名前は表示されません。</p>${response.questions.map(q=>`<form class="card live-card question-inbox-item" data-community-question-answer="${escapeHtml(q.id)}"><small>${escapeHtml(q.communityName)}・${escapeHtml(liveDate(q.createdAt))}</small><p class="question-q"><b aria-hidden="true">Q</b>${escapeHtml(q.body)}</p><label>回答<textarea name="answer" maxlength="1000" rows="3" required></textarea></label><p class="live-form-error" role="alert"></p><div class="live-navigation"><button class="btn btn-primary btn-sm">回答して公開する</button><button type="button" class="btn btn-ghost btn-sm" data-community-question-hide>非表示にする</button></div></form>`).join('')}`:'<p>回答待ちの質問はありません。</p>';},document,window);
   box.querySelectorAll('[data-community-question-answer]').forEach(form=>{
    const qid=form.dataset.communityQuestionAnswer;
    form.onsubmit=async event=>{event.preventDefault();try{await accountAPI('live/community-questions/'+encodeURIComponent(qid)+'/answer','POST',{answer:form.elements.answer.value});toast('回答を公開しました。');await loadCommunityQuestionInbox(box);}catch(error){form.querySelector('[role="alert"]').textContent=error.message;}};
    form.querySelector('[data-community-question-hide]').onclick=async()=>{if(!confirm('この質問を非表示にしますか？'))return;try{await accountAPI('live/community-questions/'+encodeURIComponent(qid)+'/hide','POST',{});await loadCommunityQuestionInbox(box);}catch(error){toast(error.message);}};
   });
- }catch(error){if(box.isConnected)box.innerHTML=`<p role="alert">${escapeHtml(error.message)}</p>`;}
+ }catch(error){if(uid===accountUser?.id&&epoch===accountEpoch&&box.isConnected)liveAsyncSectionError(box,error);}
 }
 // ラウンジへの参加状況は別APIなので、描画後に流れ表示と「検討中」一覧へ反映する
 function bindParticipationUI(scope){
@@ -1824,9 +1867,9 @@ function bindLiveUI(scope){
  bindWaitingUI(scope);
  bindParticipationUI(scope);
  scope.querySelectorAll('[data-questions]').forEach(box=>void loadQuestions(box));
- scope.querySelectorAll('[data-community-questions]').forEach(box=>void loadCommunityQuestions(box));
+ scope.querySelectorAll('[data-community-questions]').forEach(box=>{box.addEventListener('tobiyori:auto-sync',()=>void loadCommunityQuestions(box));void loadCommunityQuestions(box);});
  const inbox=scope.querySelector('[data-question-inbox]');if(inbox&&accountUser)void loadQuestionInbox(inbox);
- const communityInbox=scope.querySelector('[data-community-question-inbox]');if(communityInbox&&accountUser)void loadCommunityQuestionInbox(communityInbox);
+ const communityInbox=scope.querySelector('[data-community-question-inbox]');if(communityInbox&&accountUser){communityInbox.addEventListener('tobiyori:auto-sync',()=>void loadCommunityQuestionInbox(communityInbox));void loadCommunityQuestionInbox(communityInbox);}
  bindFeedbackAdmin(scope);
  void recordVisibleCommunityView();
  scope.querySelectorAll('[data-community-save]').forEach(b=>b.onclick=async()=>{const uid=accountUser?.id,epoch=accountEpoch,saved=b.dataset.saved!=='true';if(await liveAction('saved-communities/'+encodeURIComponent(b.dataset.communitySave),{saved},b)){if(uid!==accountUser?.id||epoch!==accountEpoch)return;render();toast(saved?'コミュニティを保存しました':'保存を解除しました');}});
@@ -4364,7 +4407,14 @@ function connectionContinueHTML(inRecords=false){
 function liveSyncIdentity(){return {account:String(accountEpoch)+':'+(accountUser?.id||''),route:current.view+'/'+(current.param||'')};}
 function liveSyncSignature(){return JSON.stringify([LIVE.catalog,LIVE.dashboard,LIVE.review,LIVE.feedbackNew,LIVE.error]);}
 function liveHandleAuthChange(){
+ preserveAccountRecovery();
  accountEpoch++;accountUser=null;clearLivePrivate();DB=defaultStore();pendingAccountState=null;accountRevision=0;accountError='';accountReady=false;closeModal();void startAccount();
+}
+function liveSyncNotice(message=''){
+ let notice=document.getElementById('liveSyncNotice');
+ if(!message){notice?.remove();return;}
+ if(!notice){notice=document.createElement('p');notice.id='liveSyncNotice';notice.className='container live-form-error';notice.setAttribute('role','status');document.getElementById('app')?.before(notice);}
+ notice.textContent=message;
 }
 function liveSafeRender(){
  const mapView=activeCircleMap?{center:activeCircleMap.getCenter(),zoom:activeCircleMap.getZoom()}:null;
@@ -4380,7 +4430,7 @@ function startLiveAutoSync(){
   context:liveSyncIdentity,signature:liveSyncSignature,
   retryUntil:()=>accountRetryUntil,
   capabilities:()=>accountAPI('health'),
-  refresh:async()=>{await refreshLive(false,{background:true,fresh:true,quiet:true});if(LIVE.errorStatus===401||LIVE.errorStatus===409&&/ログイン状態/.test(LIVE.error)){liveHandleAuthChange();return;}if(LIVE.error){if(LIVE.errorStatus===403)closeModal();liveSafeRender();throw new Error('retry later');}},
+  refresh:async()=>{await refreshLive(false,{background:true,fresh:true,quiet:true});if(LIVE.errorStatus===401||LIVE.errorStatus===409&&/ログイン状態/.test(LIVE.error)){liveSyncNotice();liveHandleAuthChange();return;}if(LIVE.error){if(LIVE.errorStatus===403){liveSyncNotice();closeModal();liveSafeRender();}else liveSyncNotice('最新の情報を取得できません。入力中の内容を保持しています。通信が戻ると自動で再確認します。');throw new Error('retry later');}liveSyncNotice();},
   render:liveSafeRender,room:refreshOpenLiveRoom,authChanged:liveHandleAuthChange
  });
 }

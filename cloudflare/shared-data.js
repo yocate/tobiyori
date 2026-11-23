@@ -27,7 +27,7 @@ export async function forwardSharedData(request, config, fetcher = fetch) {
   if (media && !read || api && !['GET','POST','PUT','DELETE'].includes(request.method)) return json(405,'この操作には対応していません。');
   if ((!read||upgrade) && request.headers.get('Origin') !== config.applicationOrigin) return json(403,'アプリを開き直してから操作してください。');
   const target = new URL(config.origin);
-  target.pathname = url.pathname.split('/').map(part => config.aliases[part] || part).join('/');
+  target.pathname = url.pathname.split('/').map(part => Object.hasOwn(config.aliases,part) ? config.aliases[part] : part).join('/');
   target.search = url.search;
   const headers = new Headers({'X-Tobiyori-Shared-Hop':'1'});
   for (const name of ['Accept','Content-Type','X-Tobiyori-Account','If-None-Match','If-Modified-Since','Range','CF-Connecting-IP']) {
@@ -47,7 +47,7 @@ export async function forwardSharedData(request, config, fetcher = fetch) {
     body=bytes;
     // Existing tabs and already shared URLs can still contain the former independent IDs.
     if(api&&(headers.get('Content-Type')||'').startsWith('application/json')){
-      try { const input=JSON.parse(new TextDecoder().decode(bytes));if(input&&typeof input==='object'&&!Array.isArray(input)){for(const key of ['communityId','activityId'])if(typeof input[key]==='string'&&config.aliases[input[key]])input[key]=config.aliases[input[key]];body=JSON.stringify(input);} } catch { /* The authoritative API validates malformed JSON. */ }
+      try { const input=JSON.parse(new TextDecoder().decode(bytes));if(input&&typeof input==='object'&&!Array.isArray(input)){for(const key of ['communityId','activityId'])if(typeof input[key]==='string'&&Object.hasOwn(config.aliases,input[key]))input[key]=config.aliases[input[key]];body=JSON.stringify(input);} } catch { /* The authoritative API validates malformed JSON. */ }
     }
   }
   let response;
@@ -67,7 +67,7 @@ export async function forwardSharedData(request, config, fetcher = fetch) {
 }
 
 export function sharedEntryScript(config) {
-  return `(()=>{'use strict';const aliases=${JSON.stringify(config.aliases)};function route(){const parts=location.hash.split('/');for(let i=0;i<parts.length;i++){const prefix=parts[i].startsWith('edit-')?'edit-':'';const id=parts[i].slice(prefix.length);if(aliases[id])parts[i]=prefix+aliases[id];}const hash=parts.join('/');if(hash!==location.hash)history.replaceState(null,'',location.pathname+location.search+hash);}route();addEventListener('hashchange',route);function notice(){const f=document.getElementById('accountForm');if(f&&!f.querySelector('[data-shared-account-notice]')){const p=document.createElement('p');p.dataset.sharedAccountNotice='';p.className='hint';p.textContent='これまでのトビヨリのアカウントでログインできます。';f.prepend(p);}}addEventListener('DOMContentLoaded',()=>{notice();new MutationObserver(notice).observe(document.body,{childList:true,subtree:true});});})();`;
+  return `(()=>{'use strict';const aliases=${JSON.stringify(config.aliases)};function route(){const parts=location.hash.split('/');for(let i=0;i<parts.length;i++){const prefix=parts[i].startsWith('edit-')?'edit-':'';const id=parts[i].slice(prefix.length);if(Object.prototype.hasOwnProperty.call(aliases,id))parts[i]=prefix+aliases[id];}const hash=parts.join('/');if(hash!==location.hash)history.replaceState(null,'',location.pathname+location.search+hash);}route();addEventListener('hashchange',route);function notice(){const f=document.getElementById('accountForm');if(f&&!f.querySelector('[data-shared-account-notice]')){const p=document.createElement('p');p.dataset.sharedAccountNotice='';p.className='hint';p.textContent='これまでのトビヨリのアカウントでログインできます。';f.prepend(p);}}addEventListener('DOMContentLoaded',()=>{notice();new MutationObserver(notice).observe(document.body,{childList:true,subtree:true});});})();`;
 }
 
 // Internal Durable Object RPC only. No HTTP export/admin endpoint or account data is exposed.
@@ -81,8 +81,8 @@ export async function prepareSharedCutover(db, storage, backups, config) {
   const ids=new Set(real.map(c=>c.id));
   const activities=db.prepare('SELECT id,community_id FROM live_activities').all().filter(a=>ids.has(a.community_id));
   const activityIds=new Set(activities.map(a=>a.id));
-  const unknownCommunities=real.filter(c=>!config.aliases[c.id]).length;
-  const unknownActivities=activities.filter(a=>!config.aliases[a.id]).length;
+  const unknownCommunities=real.filter(c=>!Object.hasOwn(config.aliases,c.id)).length;
+  const unknownActivities=activities.filter(a=>!Object.hasOwn(config.aliases,a.id)).length;
   const applications=db.prepare('SELECT activity_id FROM live_applications').all().filter(a=>activityIds.has(a.activity_id)).length;
   const messages=db.prepare('SELECT activity_id FROM live_activity_messages').all().filter(a=>activityIds.has(a.activity_id)).length;
   if(unknownCommunities||unknownActivities||applications||messages)throw new Error('新サイトの未移行データを確認する必要があります。');

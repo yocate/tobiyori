@@ -9,6 +9,7 @@ const requests=[];
 const context={location:{protocol:'http:',hostname:'localhost',hash:'#/home'},window:{addEventListener(){}},document:{visibilityState:"hidden",addEventListener(){},getElementById(){return null;}},console,setTimeout,clearTimeout,setInterval(){},URL,URLSearchParams,fetch:async(url,options)=>{
  requests.push({url,...options});return {ok:true,json:async()=>({revision:requests.length})};
 }};
+Object.assign(context.window,{document:context.document,setTimeout(){},clearTimeout(){}});
 vm.createContext(context);vm.runInContext(source,context);
 const ui=context.testUI;
 (async()=>{
