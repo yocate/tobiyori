@@ -9,6 +9,7 @@ import { nodeRequest, nodeResponse } from './http-shim.js';
 import { extractMedia, serveMedia } from './media.js';
 import { sharedDataConfig, forwardSharedData, sharedEntryScript, prepareSharedCutover } from './shared-data.js';
 import { notificationCursor, publicMutation, openLiveSocket, broadcastLiveUpdates, liveSocketMessage } from './live-updates.js';
+import { frontendOrigin } from './frontend-origin.js';
 import csp from '../dist/csp.json';
 
 const { createApp, localHasher } = appModule;
@@ -165,8 +166,11 @@ async function api(request, env, ctx) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    let activeOrigin;
+    try{activeOrigin=frontendOrigin(url,env);}catch{return json(503,{error:'公開先の設定を確認してください。'});}
+    if(!activeOrigin)return new Response('Not found',{status:404});
+    if(activeOrigin!==env.APP_ORIGIN)env={...env,APP_ORIGIN:activeOrigin};
     const origin = new URL(env.APP_ORIGIN);
-    if (url.host !== origin.host) return new Response('Not found', { status: 404 });
     if (secure(env) && url.protocol === 'http:') return Response.redirect(origin.origin + url.pathname + url.search, 301);
     let shared;
     try { shared=sharedDataConfig(env); } catch { return withSecurityHeaders(json(503,{error:'共通の保存先の設定を確認してください。'}),env); }
